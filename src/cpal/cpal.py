@@ -4,10 +4,9 @@ Implements Cutting-Plane based active learning (CPAL).
 import cvxpy as cp
 import numpy as np
 from scipy.stats import norm
-from utils import *
+from src.cpal.utils import *
 import warnings
 warnings.filterwarnings('ignore')
-
 
 
 def pred_point(i, U1v, U2v, X, dmat): # corresponds to <w(theta), x>
@@ -59,6 +58,7 @@ def in_Ct(c, Ct, eps=1e-3):
             return False
     return True
 
+# compute analytic center
 def center(S, dmat, d=2, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e-4):
     """S is list of affine inequalities described as tuple of LHS vector/matrix and RHS scalar/vector"""
     m=dmat.shape[1]
@@ -91,7 +91,7 @@ def center(S, dmat, d=2, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e
     prob.solve(solver=cp.MOSEK)
     return s.value
 
-def cut(S, x, y, dmat_row, thresh):
+def cut_reg(S, x, y, dmat_row, thresh): # cut for reg-cpal
     m = len(dmat_row)
     
     # Compute f^convex part
@@ -105,6 +105,20 @@ def cut(S, x, y, dmat_row, thresh):
     relu_constraint = -np.kron(np.diag(2*dmat_row - np.ones(m)), np.kron(np.eye(2), x))
     for lhs in relu_constraint:
         S.append((lhs, 0))  # Append ReLU constraint to S
+
+
+def cut(S, x, y, dmat_row):
+    m = len(dmat_row)
+    # f = cp.sum(cp.multiply(dmat, X*(Uopt1 - Uopt2)), axis=1)
+    # f_i = dmat[i, 0] * X[i, :] [I - I] var[:, 0] + dmat[i, 1] * X[i, :] [I - I] var[:, 1] + ...  where var = [Uopt1; Uopt2]
+    # f_i = dmat[i, :] @ [X[i, :] [I - I] var[:, 0]; X[i, :] [I - I] var[:, 1]; ...]
+    S.append((-y * dmat_row @ np.kron(np.eye(m), np.concatenate((x, -x)).T), 0))
+
+    relu_constraint = -np.kron(np.diag(2*dmat_row-np.ones(m)), np.kron(np.eye(2), x))
+    for lhs in relu_constraint:
+        S.append((lhs, 0))
+    # potentially remove redundant constraints here
+
 
 def query(C, c, data_tried, data_used, X, dmat, M=100):
     n_train, d = X.shape
@@ -200,20 +214,19 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
             if np.linalg.norm(pred_point_simplified_vec(i_mini, c, X, dmat) - y[i_mini]) > threshold:
                 print(f'Cutting at iteration {it}')
                 #cut(Ct, X[i_mini], y[i_mini], dmat[i_mini])
-                cut(Ct, X[i_mini], y[i_mini], dmat[i_mini],threshold)
+                cut_reg(Ct, X[i_mini], y[i_mini], dmat[i_mini],threshold)
                 data_used.append(i_mini)
                 did_cut = True
             if np.linalg.norm(pred_point_simplified_vec(i_maxi, c, X, dmat)- y[i_maxi]) > threshold:
                 print(f'Cutting at iteration {it}')
                 #cut(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi])
-                cut(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi],threshold)
+                cut_reg(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi],threshold)
                 data_used.append(i_maxi)
                 did_cut = True
         else:
             if np.linalg.norm(pred_point_simplified_vec(i_minabs, c, X, dmat) - y[i_minabs]) > threshold:
                 print(f'Cutting at iteration {it}')
-                #cut(Ct, X[i_minabs], y[i_minabs], dmat[i_minabs])
-                cut(Ct, X[i_minabs], y[i_minabs], dmat[i_minabs],threshold)
+                cut_reg(Ct, X[i_minabs], y[i_minabs], dmat[i_minabs],threshold)
                 data_used.append(i_minabs)
                 did_cut = True
         it += 1
@@ -222,6 +235,70 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
 
         #print(len(data_tried))
 
+    return Ct, c, data_used
+
+def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
+    n_train, d = X.shape
+    m=dmat.shape[1]
+    C0_lower = -R*np.ones(2*d*m)
+    C0_upper = R*np.ones(2*d*m)
+
+    data_tried = []
+    data_used = []
+    
+    Ct = []
+    if boxinit:
+        for i, (l, u) in enumerate(zip(C0_lower, C0_upper)):
+            one_vec = np.zeros(2*d*m)
+            one_vec[i] = 1
+            Ct.append((one_vec, u))
+            Ct.append((-one_vec, -l))
+    
+    c = None
+    did_cut = True
+    it = 0
+    while len(data_used) < n_points and it < maxit: # TODO: replace by proper termination criterion
+        if len(data_tried) == n_train:
+            data_tried = []
+        if did_cut:
+            #if len(data_used) > 0:
+            #    _, _, reg_value = convex_solve(data_used)
+            #else:
+            #    reg_value = 1e-5
+            c = center(Ct, dmat, R=R)
+            did_cut = False
+        i_mini, i_maxi, i_minabs = query(Ct, c, data_tried, data_used, X, dmat)
+        if i_mini is None:
+            return Ct, c, data_used
+        data_tried += [i_mini, i_maxi]
+        data_tried = list(set(data_tried))
+        #if it >= 30:
+        #    print(X[i_mini], np.sign(pred_point_simplified_vec(i_mini, c)), y[i_mini])
+        #    print(X[i_maxi], np.sign(pred_point_simplified_vec(i_maxi, c)), y[i_maxi])
+            #print(X[i_minabs], np.sign(pred_point_simplified_vec(i_minabs, c)), y[i_minabs])
+        if True: #len(data_used) < 4 * n_points // 5:
+            if np.sign(pred_point_simplified_vec(i_mini, c, X, dmat)) != y[i_mini]:
+                print(f'Cutting at iteration {it}')
+                cut(Ct, X[i_mini], y[i_mini], dmat[i_mini])
+                data_used.append(i_mini)
+                did_cut = True
+            if np.sign(pred_point_simplified_vec(i_maxi, c, X, dmat)) != y[i_maxi]:
+                print(f'Cutting at iteration {it}')
+                cut(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi])
+                data_used.append(i_maxi)
+                did_cut = True
+        else:
+            if np.sign(pred_point_simplified_vec(i_minabs, c, X, dmat)) != y[i_minabs]:
+                print(f'Cutting at iteration {it}')
+                cut(Ct, X[i_minabs], y[i_minabs], dmat[i_minabs])
+                data_used.append(i_minabs)
+                did_cut = True
+        it += 1
+        
+        #data_used = list(set(data_used))
+        
+        #print(len(data_tried))
+    
     return Ct, c, data_used
 
 # plotting functions
@@ -302,20 +379,20 @@ def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, X_test, y_test, use
     plt.savefig(f'Cutting-Plane AFS.pdf', bbox_inches='tight')
     plt.show()
 
-if __name__ == "__main__":
-    from synthetic_data import *
-    X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
-    dmat = generate_hyperplane_arrangement(X = X)
-    C, c, used = cutting_plane_regression(X, y, dmat, n_points = 20)
-    print(f'size of C: {len(C)}')
-    print(f'used: {used}')
-    # plot results
-    n_train, d = X.shape
-    m = dmat.shape[1]
-    Uopt1_final_v, Uopt2_final_v, _ = convex_solve(used, d, dmat, n_train) # with final convex solve
-    theta_matrix = np.reshape(c, (2*d, m), order='F') # without convex solve
-    Uopt1_v = theta_matrix[:d]
-    Uopt2_v = theta_matrix[d:]
-    Uopt1v_list = [Uopt1_final_v, Uopt1_v]
-    Uopt2v_list = [Uopt2_final_v, Uopt2_v]
-    visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, X_test, y_test, used, plot_band = False)
+# if __name__ == "__main__":
+#     from synthetic_data import *
+#     X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
+#     dmat = generate_hyperplane_arrangement(X = X)
+#     C, c, used = cutting_plane_regression(X, y, dmat, n_points = 20)
+#     print(f'size of C: {len(C)}')
+#     print(f'used: {used}')
+#     # plot results
+#     n_train, d = X.shape
+#     m = dmat.shape[1]
+#     Uopt1_final_v, Uopt2_final_v, _ = convex_solve(used, d, dmat, n_train) # with final convex solve
+#     theta_matrix = np.reshape(c, (2*d, m), order='F') # without convex solve
+#     Uopt1_v = theta_matrix[:d]
+#     Uopt2_v = theta_matrix[d:]
+#     Uopt1v_list = [Uopt1_final_v, Uopt1_v]
+#     Uopt2v_list = [Uopt2_final_v, Uopt2_v]
+#     visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, X_test, y_test, used, plot_band = False)

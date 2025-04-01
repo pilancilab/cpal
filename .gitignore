@@ -1,4 +1,7 @@
 **/__pycache__/
-.ipynb_checkpoints/
+*.ipynb_checkpoints/
 data/
-examples/experiment.ipynb
+examples/experiment_reg.ipynb
+examples/experiment_class.ipynb
+examples/plots
+examples/test

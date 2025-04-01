@@ -14,77 +14,77 @@ class Net:
         self.device = device
     
     # for classification
-    def train(self, data):
-        n_epoch = self.params['n_epoch']
-        self.clf = self.net().to(self.device)
-        self.clf.train()
-        optimizer = optim.SGD(self.clf.parameters(), **self.params['optimizer_args'])
-
-        loader = DataLoader(data, shuffle=True, **self.params['train_args'])
-        for epoch in tqdm(range(1, n_epoch+1), ncols=100):
-            for batch_idx, (x, y, idxs) in enumerate(loader):
-                x, y = x.to(self.device), y.to(self.device)
-                optimizer.zero_grad() # set gradients from prev iterations to zero
-                out, e1 = self.clf(x)
-                loss = F.cross_entropy(out, y) # cross entropy loss of raw outputs
-                loss.backward() # back propogating for computing gradients
-                optimizer.step() # update gradients
-    
-    # # for regression
-    # def train(self, data): # passes labeled_data
+    # def train(self, data):
     #     n_epoch = self.params['n_epoch']
     #     self.clf = self.net().to(self.device)
     #     self.clf.train()
-
-    #     # Use MSELoss for regression
-    #     criterion = nn.MSELoss()  # Change loss function to MSELoss for regression
     #     optimizer = optim.SGD(self.clf.parameters(), **self.params['optimizer_args'])
-    #     # optimizer = optim.Adam(self.clf.parameters(), lr=1e-3)
 
     #     loader = DataLoader(data, shuffle=True, **self.params['train_args'])
-
-    #     for epoch in tqdm(range(1, n_epoch + 1), ncols=100):
+    #     for epoch in tqdm(range(1, n_epoch+1), ncols=100):
     #         for batch_idx, (x, y, idxs) in enumerate(loader):
     #             x, y = x.to(self.device), y.to(self.device)
-    #             optimizer.zero_grad()
-    #             # Forward pass
+    #             optimizer.zero_grad() # set gradients from prev iterations to zero
     #             out, e1 = self.clf(x)
-                
-    #             # Ensure that 'out' and 'y' are compatible in terms of shape
-    #             if out.shape != y.shape:
-    #                 out = out.view_as(y)  # Reshape out to match y if necessary
-
-    #             # Compute loss using MSELoss
-    #             loss = criterion(out, y)
-    #             # Backward pass and optimize
-    #             loss.backward()
-    #             optimizer.step()
-    
-    # for classification tasks
-    def predict(self, data):
-        self.clf.eval()
-        preds = torch.zeros(len(data), dtype=data.Y.dtype)
-        loader = DataLoader(data, shuffle=False, **self.params['test_args'])
-        with torch.no_grad():
-            for x, y, idxs in loader:
-                x, y = x.to(self.device), y.to(self.device)
-                out, e1 = self.clf(x)
-                pred = out.max(1)[1]
-                preds[idxs] = pred.cpu()
-        return preds
-    
+    #             loss = F.cross_entropy(out, y) # cross entropy loss of raw outputs
+    #             loss.backward() # back propogating for computing gradients
+    #             optimizer.step() # update gradients
     
     # # for regression
+    def train(self, data): # passes labeled_data
+        n_epoch = self.params['n_epoch']
+        self.clf = self.net().to(self.device)
+        self.clf.train()
+
+        # Use MSELoss for regression
+        criterion = nn.MSELoss()  # Change loss function to MSELoss for regression
+        optimizer = optim.SGD(self.clf.parameters(), **self.params['optimizer_args'])
+        # optimizer = optim.Adam(self.clf.parameters(), lr=1e-3)
+
+        loader = DataLoader(data, shuffle=True, **self.params['train_args'])
+
+        for epoch in tqdm(range(1, n_epoch + 1), ncols=100):
+            for batch_idx, (x, y, idxs) in enumerate(loader):
+                x, y = x.to(self.device), y.to(self.device)
+                optimizer.zero_grad()
+                # Forward pass
+                out, e1 = self.clf(x)
+                
+                # Ensure that 'out' and 'y' are compatible in terms of shape
+                if out.shape != y.shape:
+                    out = out.view_as(y)  # Reshape out to match y if necessary
+
+                # Compute loss using MSELoss
+                loss = criterion(out, y)
+                # Backward pass and optimize
+                loss.backward()
+                optimizer.step()
+    
+    # # for classification tasks
     # def predict(self, data):
     #     self.clf.eval()
-    #     preds = torch.zeros(len(data), dtype=torch.float32)  # Initialize preds as float for regression
+    #     preds = torch.zeros(len(data), dtype=data.Y.dtype)
     #     loader = DataLoader(data, shuffle=False, **self.params['test_args'])
     #     with torch.no_grad():
     #         for x, y, idxs in loader:
     #             x, y = x.to(self.device), y.to(self.device)
     #             out, e1 = self.clf(x)
-    #             preds[idxs] = out.cpu().squeeze()  # Use the raw output for regression
+    #             pred = out.max(1)[1]
+    #             preds[idxs] = pred.cpu()
     #     return preds
+    
+    
+    # for regression
+    def predict(self, data):
+        self.clf.eval()
+        preds = torch.zeros(len(data), dtype=torch.float32)  # Initialize preds as float for regression
+        loader = DataLoader(data, shuffle=False, **self.params['test_args'])
+        with torch.no_grad():
+            for x, y, idxs in loader:
+                x, y = x.to(self.device), y.to(self.device)
+                out, e1 = self.clf(x)
+                preds[idxs] = out.cpu().squeeze()  # Use the raw output for regression
+        return preds
     
     
     # For classification (discretized for regression)
@@ -225,7 +225,8 @@ class CIFAR10_Net(nn.Module):
 
 class Spiral_Net(nn.Module):
     def __init__(self):
-        super(Spiral_Net, self).__init__()
+        # super(Spiral_Net, self).__init__()
+        super().__init__() 
         self.fc1 = nn.Linear(3, 623)  # Input is 3-dimensional (x, y, bias) # 134
         self.fc3 = nn.Linear(623, 2)  # Output is 2 classes (binary classification) - 134 neurons for 40 data-points
 
@@ -243,7 +244,8 @@ class Spiral_Net(nn.Module):
 #### NEW #####
 class Blob_Net(nn.Module):
     def __init__(self):
-        super(Blob_Net, self).__init__()
+        # super(Blob_Net, self).__init__()
+        super().__init__() 
         self.fc1 = nn.Linear(3, 141)  # Input is 3-dimensional (x, y, bias)
         self.fc3 = nn.Linear(141, 2)  # Output is 2 classes (binary classification)
 
@@ -261,7 +263,8 @@ class Blob_Net(nn.Module):
 ### NEW ######
 class Quadratic_Net(nn.Module):
     def __init__(self):
-        super(Quadratic_Net, self).__init__()
+        #super(Quadratic_Net, self).__init__()
+        super().__init__() 
         self.fc1 = nn.Linear(2, 160)  # Input is 2-dimensional (x, y, bias)
         self.fc3 = nn.Linear(160, 1)  # Output is continuous
 
