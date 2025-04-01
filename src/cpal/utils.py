@@ -15,9 +15,9 @@ def drelu(x):
 def sign(a):
     return 2 * int(a >= 0) - 1
 
-def generate_hyperplane_arrangement(X,d = 2, P = 2000, seed = 0):
-    # beta=1e-5
-    n_train = len(X)
+
+def generate_hyperplane_arrangement(X, P = 2000, seed = 0):
+    n_train, d = X.shape
     np.random.seed(seed)
     dmat=np.empty((n_train,0))
     
@@ -30,7 +30,54 @@ def generate_hyperplane_arrangement(X,d = 2, P = 2000, seed = 0):
 
     return dmat
 
-def solve_two_layer_convex_program(X, y, dmat, beta=1e-5, solver=cp.CLARABEL, verbose=False):
+def solve_optimal_cvx(X, y, dmat, beta, solver=cp.CLARABEL, verbose=False): # taken from spiral
+    """
+    Solves the 2-layer convex optimization problem with group lasso penalty.
+
+    Args:
+        X (numpy.ndarray): Feature matrix of shape (n, d).
+        y (numpy.ndarray): Labels vector of shape (n, 1).
+        dmat (numpy.ndarray): Discretized activation matrix (n, m).
+        beta (float): Regularization parameter for group lasso.
+        solver (cvxpy Solver): Solver to use (default: CLARABEL).
+        verbose (bool): If True, prints status and objective.
+
+    Returns:
+        float: Optimal objective value.
+        tuple: (Uopt1, Uopt2) optimal variables as numpy arrays.
+    """
+    n, d = X.shape
+    m = dmat.shape[1]
+
+    Uopt1 = cp.Variable((d, m))  # First layer weight
+    Uopt2 = cp.Variable((d, m))  # Second layer weight
+
+    # Output predictions
+    yopt1 = cp.sum(cp.multiply(dmat, X @ Uopt1), axis=1, keepdims=True)
+    yopt2 = cp.sum(cp.multiply(dmat, X @ Uopt2), axis=1, keepdims=True)
+
+    # Hinge-like squared loss + mixed norm regularization
+    loss = cp.sum_squares(y - (yopt1 - yopt2)) / (2 * n)
+    reg = beta * (cp.mixed_norm(Uopt1.T, 2, 1) + cp.mixed_norm(Uopt2.T, 2, 1))
+    cost = loss + reg
+
+    # Constraints to preserve sign of ReLU activations
+    constraints = [
+        cp.multiply((2 * dmat - 1), X @ Uopt1) >= 0,
+        cp.multiply((2 * dmat - 1), X @ Uopt2) >= 0,
+    ]
+
+    # Solve
+    prob = cp.Problem(cp.Minimize(cost), constraints)
+    prob.solve(solver=solver, warm_start=True)
+
+    if verbose or prob.status != "optimal":
+        print("Convex: Status:", prob.status)
+        print("2-layer convex program objective value:", prob.value)
+
+    return prob.value, Uopt1.value, Uopt2.value
+
+def solve_two_layer_convex_program(X, y, dmat, beta=1e-5, solver=cp.CLARABEL, verbose=False): # taken from regression
     """
     Solves the convex relaxation of a 2-layer ReLU network using mixed-norm regularization.
 
@@ -249,24 +296,64 @@ def evaluate_quadratic_regression_models(X_all, y_all, X, y, X_test, y_test,
 
     return results
 
+def compare_accuracy(Xacc, yacc, Uopt1v, Uopt2v, U, w, verbose=True):
+    """
+    Compare accuracy between convex (CVX) model and backprop (BP) model.
+
+    Args:
+        Xacc (np.ndarray): Data matrix for accuracy evaluation.
+        yacc (np.ndarray): Ground-truth binary labels (shape (n,) or (n,1)).
+        Uopt1v (np.ndarray): CVX first-layer weights (d, m).
+        Uopt2v (np.ndarray): CVX second-layer weights (d, m).
+        U (np.ndarray): Backprop first-layer weights.
+        w (np.ndarray): Backprop output layer weights.
+        verbose (bool): If True, prints accuracy scores.
+
+    Returns:
+        tuple: (acc_cvx, acc_bp) — accuracy scores for CVX and BP models.
+    """
+    # Ensure labels are 1D
+    yacc = yacc.flatten()
+
+    # CVX prediction
+    Z1 = Xacc @ Uopt1v
+    Z2 = Xacc @ Uopt2v
+    yhat_cvx = np.sum(drelu(Z1) * Z1 - drelu(Z2) * Z2, axis=1)
+    yacc_cvx = np.sign(yhat_cvx)
+
+    # BP prediction
+    yhat_bp = relu(Xacc @ U) @ w
+    yacc_bp = np.sign(yhat_bp.flatten())
+
+    # Accuracy
+    acc_cvx = np.mean(yacc_cvx == yacc)
+    acc_bp = np.mean(yacc_bp == yacc)
+
+    if verbose:
+        print(f'Accuracy CVX: {acc_cvx:.4f}, Accuracy BP: {acc_bp:.4f}')
+
+    return acc_cvx, acc_bp
+
+
 
 
 # if __name__ == "__main__":
 #     from synthetic_data import *
-#     X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
-#     dmat = generate_hyperplane_arrangement(X = X, seed = RANDOM_STATE)
+#     #X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
+#     X_all, y_all, X, y, X_test, y_test = generate_spiral_data(n=10, n_train=80)
+#     dmat = generate_hyperplane_arrangement(X = X, P = 1000, seed = RANDOM_STATE)
 #     U1, U2, cvx_opt, status = solve_two_layer_convex_program(X, y, dmat, beta=1e-5)
 #     print("Following are results from BP -----")
 #     U_bp, w_bp, obj_bp = train_bp_two_layer_relu(
 #     X=X, y=y, m=dmat.shape[1], beta=1e-5, sigma=1e-2, mu_init=0.5,
 #     ITERS=15000, cvx_opt=cvx_opt, seed=42)
-#     results = evaluate_quadratic_regression_models(
-#         X_all=X_all, y_all=y_all,
-#         X=X, y=y,
-#         X_test=X_test, y_test=y_test,
-#         Uopt1=U1, Uopt2=U2,
-#         U_bp=U_bp, w_bp=w_bp,
-#         save_path='full_data_reg.pdf'
-#         )
+    # results = evaluate_quadratic_regression_models(
+    #     X_all=X_all, y_all=y_all,
+    #     X=X, y=y,
+    #     X_test=X_test, y_test=y_test,
+    #     Uopt1=U1, Uopt2=U2,
+    #     U_bp=U_bp, w_bp=w_bp,
+    #     save_path='plots/full_data_classification.pdf'
+    #     )
 
 
