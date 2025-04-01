@@ -200,7 +200,7 @@ def visualize_regression_linear(c, X_all, X, y, X_test, y_test, used, alpha = 0.
     plt.xlabel('x')
     plt.ylabel('y')
     plt.legend()
-    plt.savefig(f'Linear.pdf', bbox_inches='tight')
+    plt.savefig(f'plots/Linear.pdf', bbox_inches='tight')
     plt.show()
 
 

@@ -158,7 +158,7 @@ def run_active_learning_strategies(X_all, y_all, X, y, X_test, y_test,
             plt.title(f'Active Learning ({strategy})')
             plt.legend()
             if save_plots:
-                plt.savefig(f'{strategy}.pdf', bbox_inches='tight')
+                plt.savefig(f'plots/{strategy}.pdf', bbox_inches='tight')
             if show_plots:
                 plt.show()
             else:
@@ -191,5 +191,6 @@ if __name__ == "__main__":
         data_budget=20,
         seed=RANDOM_STATE
     )
+    print(results)
 
 
