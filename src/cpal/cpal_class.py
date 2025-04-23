@@ -4,16 +4,11 @@ Temporary codes here for cpal in classification - will clean up and unify the co
 import cvxpy as cp
 import numpy as np
 import matplotlib.pyplot as plt
-from synthetic_data import generate_spiral_data
+from src.cpal.synthetic_data import generate_spiral_data
 import matplotlib.colors as mcolors
-from utils import *
+from src.cpal.utils import *
 import warnings
 warnings.filterwarnings('ignore')
-
-def safe_sign(x):
-    s = np.sign(x)
-    s[s == 0] = 1  # or -1 — pick one to be consistent
-    return s
 
 def pred_point(i, U1v, U2v, X, dmat): # corresponds to <w(theta), x>
     y1 = np.sum(np.multiply(dmat[i],(X[i][np.newaxis, :] @ U1v)),axis=1)
@@ -45,8 +40,7 @@ def in_Ct(c, Ct, eps=1e-3):
             return False
     return True
 
-def sample_lattice(X, dmat, S, R=1):
-    n_train, d = X.shape
+def sample_lattice(dmat, S, R=1):
     m = dmat.shape[1]
     d = 3
     l = cp.Variable(2*d*m)
@@ -225,7 +219,7 @@ def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
     
     return Ct, c, data_used
 
-def generate_Xtest(samp = 100):
+def generate_Xtest(samp = 100, d = 2):
     x1=np.linspace(-1,1,samp).reshape(-1,1)
     x2=np.linspace(-1,1,samp).reshape(-1,1)
     Xtest=np.ones((samp**2,d))
@@ -284,33 +278,32 @@ def plot_decision_boundary(X, y, X_test, y_test, Uopt1v, Uopt2v, selected_indice
     #plt.savefig(f'{name}.pdf', bbox_inches='tight')
     plt.show()
 
-if __name__ == "__main__":
-    RANDOM_STATE = 0
-    X_all, y_all, X, y, X_test, y_test = generate_spiral_data(n=10, n_train=80)
-    # dmat = generate_hyperplane_arrangement(X = X, P = 2000, seed = RANDOM_STATE)
-    beta=1e-5
-    P=1000
-    n = 80
-    d = 3
-    np.random.seed(RANDOM_STATE)
-    dmat=np.empty((n,0))
+# if __name__ == "__main__":
+#     RANDOM_STATE = 0
+#     X_all, y_all, X, y, X_test, y_test = generate_spiral_data(n=10, n_train=80)
+#     # dmat = generate_hyperplane_arrangement(X = X, P = 2000, seed = RANDOM_STATE)
+#     beta=1e-5
+#     P=1000
+#     n = 80
+#     d = 3
+#     np.random.seed(RANDOM_STATE)
+#     dmat=np.empty((n,0))
+#     ## Finite approximation of all possible sign patterns
+#     for i in range(P):
+#         u=np.random.randn(d,1)
+#         dmat=np.append(dmat,drelu(np.dot(X,u)),axis=1)
 
-    ## Finite approximation of all possible sign patterns
-    for i in range(P):
-        u=np.random.randn(d,1)
-        dmat=np.append(dmat,drelu(np.dot(X,u)),axis=1)
+#     dmat=(np.unique(dmat,axis=1))
 
-    dmat=(np.unique(dmat,axis=1))
-
-    C, c, used = cutting_plane(X, y, dmat, 20)
-    print(f'size of C: {len(C)}')
-    print(f'used: {used}')
-    n_train, d = X.shape
-    m = dmat.shape[1]
-    theta_matrix = np.reshape(c, (2*d, m), order='F')
-    Uopt1_final_v, Uopt2_final_v, _ = convex_solve(used, X, y, dmat)
-    Xtest = generate_Xtest(samp = 100)
-    plot_decision_boundary(X, y, X_test, y_test, Uopt1_final_v, Uopt2_final_v, used, 'Cvx')
+#     C, c, used = cutting_plane(X, y, dmat, 20)
+#     print(f'size of C: {len(C)}')
+#     print(f'used: {used}')
+#     n_train, d = X.shape
+#     m = dmat.shape[1]
+#     theta_matrix = np.reshape(c, (2*d, m), order='F')
+#     Uopt1_final_v, Uopt2_final_v, _ = convex_solve(used, X, y, dmat)
+#     Xtest = generate_Xtest(samp = 100)
+#     plot_decision_boundary(X, y, X_test, y_test, Uopt1_final_v, Uopt2_final_v, used, 'Cvx')
 
 
 

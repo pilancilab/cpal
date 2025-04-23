@@ -4,63 +4,16 @@ Implements Cutting-Plane based active learning (CPAL).
 import cvxpy as cp
 import numpy as np
 from scipy.stats import norm
+import matplotlib.colors as mcolors
 from src.cpal.utils import *
 import warnings
 warnings.filterwarnings('ignore')
 
 
-def pred_point(i, U1v, U2v, X, dmat): # corresponds to <w(theta), x>
-    y1 = np.sum(np.multiply(dmat[i],(X[i][np.newaxis, :] @ U1v)),axis=1)
-    y2 = np.sum(np.multiply(dmat[i],(X[i][np.newaxis, :] @ U2v)),axis=1)
-    return y1 - y2
-
-def pred_point_simplified(i, U1v, U2v, X, dmat):
-    var = np.vstack((U1v, U2v)).flatten(order='F')
-    return (dmat[i] @ np.kron(np.eye(len(dmat[i])), np.concatenate((X[i], -X[i])).T)) @ var
-
-def pred_point_simplified_vec(i, vec, X, dmat):
-    return (dmat[i] @ np.kron(np.eye(len(dmat[i])), np.concatenate((X[i], -X[i])).T)) @ vec
-
-def constraint(i, U1v, U2v, X, dmat):
-    m=dmat.shape[1]
-    return np.vstack((
-        np.multiply((2*dmat[i]-np.ones((1,m))),(X[i] @ U1v)),
-        np.multiply((2*dmat[i]-np.ones((1,m))),(X[i] @ U2v))
-    )).flatten(order='F')
-
-def constraint_simplified(i, U1v, U2v, X, dmat):
-    
-    var = np.vstack((U1v, U2v)).flatten(order='F')
-    return np.kron(np.diag(2*dmat[i]-np.ones(m)), np.kron(np.eye(2), X[i])) @ var
-
-def sample_lattice(S, dmat, R=1):
-    m=dmat.shape[1]
-    d = 3
-    l = cp.Variable(2*d*m)
-    d = np.random.randn(2*d*m)
-    obj = (d / np.linalg.norm(d)) @ l
-    prob = cp.Problem(cp.Maximize(obj), [cp.norm(l) <= R] + [lhs @ l <= rhs for lhs, rhs in S])
-    prob.solve(cp.MOSEK)
-    return l.value
-
-def sample_classifier(Ct, c, maxiter=10**5):
-    for _ in range(maxiter):
-        #candidate = np.random.uniform(C0_lower, C0_upper)
-        candidate = c + np.random.randn(*c.shape)
-        if in_Ct(candidate, Ct):
-            return candidate
-    print(f'Failed to sample after {maxiter} tries.')
-    return None
-
-def in_Ct(c, Ct, eps=1e-3):
-    for lhs, rhs in Ct:
-        if lhs @ c > rhs + eps:
-            return False
-    return True
-
 # compute analytic center
-def center(S, dmat, d=2, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e-4):
+def center(S, X, dmat, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e-4):
     """S is list of affine inequalities described as tuple of LHS vector/matrix and RHS scalar/vector"""
+    n_train, d = X.shape
     m=dmat.shape[1]
     s = cp.Variable(2*d*m)
     obj = 0 if boxinit else cp.log(R - cp.norm(s))
@@ -72,23 +25,26 @@ def center(S, dmat, d=2, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e
     if len(S) > 0:
         obj += cp.sum([cp.log(rhs - lhs @ s) for lhs, rhs in S])
 
-    # solvers = ['MOSEK', 'CLARABEL', 'GLPK', 'SCS', 'ECOS', 'OSQP']
-    # for solver in solvers:
-    #     try:
-    #         prob.solve(solver=solver, warm_start = True, verbose=False)
-    #         if prob.status == cp.OPTIMAL:
-    #             print(f"Solver {solver} succeeded!")
-    #             return s.value  # Return the center (concatenated c' and c vector)
-    #     except Exception:
-    #         if prob.status == cp.INFEASIBLE:
-    #             print(f"Solver {solver} is infeasible.")
-    #         else:
-    #             pass
-    
-    # raise RuntimeError("All solvers failed to find an optimal solution.")             
-    
     prob = cp.Problem(cp.Maximize(obj), constraints)
-    prob.solve(solver=cp.MOSEK)
+
+    solvers = ['MOSEK', 'CLARABEL', 'GLPK', 'SCS', 'ECOS', 'OSQP']
+    for solver in solvers:
+        try:
+            prob.solve(solver=solver, warm_start = True, verbose=False)
+            if prob.status == cp.OPTIMAL:
+                print(f"Solver {solver} succeeded!")
+                return s.value  # Return the center (concatenated c' and c vector)
+        except Exception:
+            if prob.status == cp.INFEASIBLE:
+                print(f"Solver {solver} is infeasible.")
+            else:
+                pass
+    
+        raise RuntimeError("All solvers failed to find an optimal solution.")             
+    
+    # prob = cp.Problem(cp.Maximize(obj), constraints)
+    # prob.solve(solver=cp.MOSEK)
+
     return s.value
 
 def cut_reg(S, x, y, dmat_row, thresh): # cut for reg-cpal
@@ -109,9 +65,6 @@ def cut_reg(S, x, y, dmat_row, thresh): # cut for reg-cpal
 
 def cut(S, x, y, dmat_row):
     m = len(dmat_row)
-    # f = cp.sum(cp.multiply(dmat, X*(Uopt1 - Uopt2)), axis=1)
-    # f_i = dmat[i, 0] * X[i, :] [I - I] var[:, 0] + dmat[i, 1] * X[i, :] [I - I] var[:, 1] + ...  where var = [Uopt1; Uopt2]
-    # f_i = dmat[i, :] @ [X[i, :] [I - I] var[:, 0]; X[i, :] [I - I] var[:, 1]; ...]
     S.append((-y * dmat_row @ np.kron(np.eye(m), np.concatenate((x, -x)).T), 0))
 
     relu_constraint = -np.kron(np.diag(2*dmat_row-np.ones(m)), np.kron(np.eye(2), x))
@@ -132,7 +85,7 @@ def query(C, c, data_tried, data_used, X, dmat, M=100):
     minabs = np.inf
     i_minabs = -1
 
-    for i in range(n_train): # search in finite data (D implicit) set to re-use dmat then
+    for i in range(n_train): # search in finite data (D implicit) set to re-use dmat
         if i not in data_tried and i not in data_used:
             pred = pred_point_simplified_vec(i, c, X, dmat)
             if pred < mini:
@@ -147,9 +100,10 @@ def query(C, c, data_tried, data_used, X, dmat, M=100):
 
     return i_mini, i_maxi, i_minabs
 
-# final convex solve
 
-def convex_solve(used, d, dmat, n_train, beta = 1e-5):
+# final convex solve
+def convex_solve(used, X, y, dmat, beta = 1e-5):
+    n_train, d = X.shape
     m=dmat.shape[1]
     used_unique = list(set(used))
 
@@ -169,8 +123,8 @@ def convex_solve(used, d, dmat, n_train, beta = 1e-5):
 
     return Uopt1_final.value, Uopt2_final.value, beta*(cp.mixed_norm(Uopt1_final.value.T,2,1)+cp.mixed_norm(Uopt2_final.value.T,2,1))
 
-# cutting plane method
 
+# cutting plane method
 def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 1e-3, R = 1, boxinit=False):
     n_train, d = X.shape
     m=dmat.shape[1]
@@ -191,7 +145,7 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
     c = None
     did_cut = True
     it = 0
-    while len(data_used) < n_points and it < maxit: # TODO: replace by proper termination criterion
+    while len(data_used) < n_points and it < maxit:
         if len(data_tried) == n_train:
             data_tried = []
         if did_cut:
@@ -199,7 +153,7 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
             #    _, _, reg_value = convex_solve(data_used)
             #else:
             #    reg_value = 1e-5
-            c = center(Ct, R=R, dmat = dmat, d = d)
+            c = center(Ct, X=X, R=R, dmat = dmat, d = d)
             did_cut = False
         i_mini, i_maxi, i_minabs = query(Ct, c, data_tried, data_used, X, dmat)
         if i_mini is None:
@@ -237,6 +191,7 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
 
     return Ct, c, data_used
 
+# cutting-plane classification
 def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
     n_train, d = X.shape
     m=dmat.shape[1]
@@ -257,7 +212,7 @@ def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
     c = None
     did_cut = True
     it = 0
-    while len(data_used) < n_points and it < maxit: # TODO: replace by proper termination criterion
+    while len(data_used) < n_points and it < maxit:
         if len(data_tried) == n_train:
             data_tried = []
         if did_cut:
@@ -265,7 +220,7 @@ def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
             #    _, _, reg_value = convex_solve(data_used)
             #else:
             #    reg_value = 1e-5
-            c = center(Ct, dmat, R=R)
+            c = center(Ct, dmat = dmat, X=X, R=R)
             did_cut = False
         i_mini, i_maxi, i_minabs = query(Ct, c, data_tried, data_used, X, dmat)
         if i_mini is None:
@@ -302,7 +257,7 @@ def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
     return Ct, c, data_used
 
 # plotting functions
-def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, X_test, y_test, used, alpha = 0.95, plot_band = True, title = 'Quadratic Regression: True vs Predicted with Training Points'):
+def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, y, X_test, y_test, used, alpha = 0.95, plot_band = True, title = 'Quadratic Regression: True vs Predicted with Training Points'):
     
     X_selected = X[used]
     y_selected = y[used]
@@ -379,6 +334,55 @@ def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, X_test, y_test, use
     plt.savefig(f'Cutting-Plane AFS.pdf', bbox_inches='tight')
     plt.show()
 
+
+# plotting
+def plot_decision_boundary(X, y, X_test, y_test, Uopt1v, Uopt2v, selected_indices, name):
+    # Define the grid range based on the data range
+    x_min, x_max = -1.5, 1.5 # 1.5
+    y_min, y_max = -1.5, 1.5
+
+    # Create a grid of points
+    x1 = np.linspace(x_min, x_max, 100)
+    x2 = np.linspace(y_min, y_max, 100)
+    x1, x2 = np.meshgrid(x1, x2)
+    Xtest = np.c_[x1.ravel(), x2.ravel()]
+    Xtest = np.append(Xtest, np.ones((Xtest.shape[0], 1)), axis=1)  # Add the bias term
+    
+    yest_cvx=np.sum(drelu(Xtest@Uopt1v)*(Xtest@Uopt1v)-drelu(Xtest@Uopt2v)*(Xtest@Uopt2v),axis=1)
+    yest_cvx = yest_cvx.reshape(x1.shape)
+    
+    # Map labels back to -1 and 1 for visualization
+    y_train_mapped = np.where(y == 1, 1, -1)
+    y_test_mapped = np.where(y_test == 1, 1, -1)
+    
+    X_selected = X[selected_indices]
+    y_selected = y_train_mapped[selected_indices]
+
+    # Create subplots
+    fig, ax = plt.subplots(figsize=(7, 7))
+
+    # Define the custom colors
+    colors = ['#920783', '#00b7c7']  # Switched the colors to match the image
+    cmap = mcolors.ListedColormap(colors)
+
+    # Plot the decision boundary with custom colors
+    ax.contourf(x1, x2, yest_cvx, alpha=0.3, cmap=cmap)
+    scatter_train = ax.scatter(X[:, 0], X[:, 1], c=y_train_mapped, edgecolor='k', s=20, cmap=cmap,
+                               label='Train Data')
+    scatter_test = ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test_mapped, edgecolor='k', s=20, cmap=cmap,
+                              marker='^', label = 'Test Data')
+    scatter_select = ax.scatter(X_selected[:,0], X_selected[:,1], c=y_selected, s=80, cmap=cmap, marker='x',
+                               label='Queried Data')
+    
+    ax.set_xlabel('x1')
+    ax.set_ylabel('x2')
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+    ax.set_title(f'{name}')
+    plt.legend()
+    #plt.savefig(f'{name}.pdf', bbox_inches='tight')
+    plt.show()
+
 # if __name__ == "__main__":
 #     from synthetic_data import *
 #     X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
@@ -395,4 +399,4 @@ def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, X_test, y_test, use
 #     Uopt2_v = theta_matrix[d:]
 #     Uopt1v_list = [Uopt1_final_v, Uopt1_v]
 #     Uopt2v_list = [Uopt2_final_v, Uopt2_v]
-#     visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, X_test, y_test, used, plot_band = False)
+#     visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, y, X_test, y_test, used, plot_band = False)

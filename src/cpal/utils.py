@@ -14,7 +14,63 @@ def drelu(x):
     return x>=0
 def sign(a):
     return 2 * int(a >= 0) - 1
+def safe_sign(x):
+    s = np.sign(x)
+    s[s == 0] = -1  # convert (0,1) to (-1,1)
+    return s
 
+def pred_point_simplified_vec(i, vec, X, dmat): # corresponds to <w(theta), x>
+    return (dmat[i] @ np.kron(np.eye(len(dmat[i])), np.concatenate((X[i], -X[i])).T)) @ vec
+
+def constraint(i, U1v, U2v, X, dmat):
+    m=dmat.shape[1]
+    return np.vstack((
+        np.multiply((2*dmat[i]-np.ones((1,m))),(X[i] @ U1v)),
+        np.multiply((2*dmat[i]-np.ones((1,m))),(X[i] @ U2v))
+    )).flatten(order='F')
+
+def constraint_simplified(i, U1v, U2v, X, dmat):
+    m = dmat.shape[1]
+    var = np.vstack((U1v, U2v)).flatten(order='F')
+    return np.kron(np.diag(2*dmat[i]-np.ones(m)), np.kron(np.eye(2), X[i])) @ var
+
+def sample_lattice(S, dmat, R=1):
+    m=dmat.shape[1]
+    d = 3
+    l = cp.Variable(2*d*m)
+    d = np.random.randn(2*d*m)
+    obj = (d / np.linalg.norm(d)) @ l
+    prob = cp.Problem(cp.Maximize(obj), [cp.norm(l) <= R] + [lhs @ l <= rhs for lhs, rhs in S])
+    prob.solve(cp.MOSEK)
+    return l.value
+
+
+def sample_classifier(Ct, c, maxiter=10**5):
+    for _ in range(maxiter):
+        #candidate = np.random.uniform(C0_lower, C0_upper)
+        candidate = c + np.random.randn(*c.shape)
+        if in_Ct(candidate, Ct):
+            return candidate
+    print(f'Failed to sample after {maxiter} tries.')
+    return None
+
+def in_Ct(c, Ct, eps=1e-3):
+    for lhs, rhs in Ct:
+        if lhs @ c > rhs + eps:
+            return False
+    return True
+
+# helper function for plotting spiral decision boundary
+def generate_Xtest(samp = 100, d = 2):
+    x1=np.linspace(-1,1,samp).reshape(-1,1)
+    x2=np.linspace(-1,1,samp).reshape(-1,1)
+    Xtest=np.ones((samp**2,d))
+    count=0
+    for i in range(samp):
+        for j in range(samp):
+            Xtest[count]=[x1[i, 0],x2[j, 0],1]
+            count+=1
+    return Xtest
 
 def generate_hyperplane_arrangement(X, P = 2000, seed = 0):
     n_train, d = X.shape
