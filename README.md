@@ -3,6 +3,8 @@ Cutting-plane active learning is a novel active learning algorithm designed for 
 
 🔗 Paper link: [Active Learning of Deep Neural Networks via Gradient-Free Cutting Planes](https://arxiv.org/pdf/2410.02145?)
 
+*International Conference on Machine Learning (ICML) 2025*
+
 ![CPAL pipeline](documentation/cpal.png)
 
 # Abstract
