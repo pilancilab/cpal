@@ -10,15 +10,6 @@ from src.cpal.utils import *
 import warnings
 warnings.filterwarnings('ignore')
 
-def pred_point(i, U1v, U2v, X, dmat): # corresponds to <w(theta), x>
-    y1 = np.sum(np.multiply(dmat[i],(X[i][np.newaxis, :] @ U1v)),axis=1)
-    y2 = np.sum(np.multiply(dmat[i],(X[i][np.newaxis, :] @ U2v)),axis=1)
-    return y1 - y2
-
-def pred_point_simplified(i, U1v, U2v, X, dmat):
-    var = np.vstack((U1v, U2v)).flatten(order='F')
-    return (dmat[i] @ np.kron(np.eye(len(dmat[i])), np.concatenate((X[i], -X[i])).T)) @ var
-
 def pred_point_simplified_vec(i, vec, X, dmat):
     return (dmat[i] @ np.kron(np.eye(len(dmat[i])), np.concatenate((X[i], -X[i])).T)) @ vec
 
@@ -40,7 +31,7 @@ def in_Ct(c, Ct, eps=1e-3):
             return False
     return True
 
-def sample_lattice(dmat, S, R=1):
+def sample_lattice(dmat, S, R=1): 
     m = dmat.shape[1]
     d = 3
     l = cp.Variable(2*d*m)
@@ -257,7 +248,7 @@ def plot_decision_boundary(X, y, X_test, y_test, Uopt1v, Uopt2v, selected_indice
     fig, ax = plt.subplots(figsize=(7, 7))
 
     # Define the custom colors
-    colors = ['#920783', '#00b7c7']  # Switched the colors to match the image
+    colors = ["#B014A0", '#00b7c7']  # Switched the colors to match the image
     cmap = mcolors.ListedColormap(colors)
 
     # Plot the decision boundary with custom colors
@@ -278,32 +269,32 @@ def plot_decision_boundary(X, y, X_test, y_test, Uopt1v, Uopt2v, selected_indice
     #plt.savefig(f'{name}.pdf', bbox_inches='tight')
     plt.show()
 
-# if __name__ == "__main__":
-#     RANDOM_STATE = 0
-#     X_all, y_all, X, y, X_test, y_test = generate_spiral_data(n=10, n_train=80)
-#     # dmat = generate_hyperplane_arrangement(X = X, P = 2000, seed = RANDOM_STATE)
-#     beta=1e-5
-#     P=1000
-#     n = 80
-#     d = 3
-#     np.random.seed(RANDOM_STATE)
-#     dmat=np.empty((n,0))
-#     ## Finite approximation of all possible sign patterns
-#     for i in range(P):
-#         u=np.random.randn(d,1)
-#         dmat=np.append(dmat,drelu(np.dot(X,u)),axis=1)
+if __name__ == "__main__":
+    RANDOM_STATE = 0
+    X_all, y_all, X, y, X_test, y_test = generate_spiral_data(n=10, n_train=80)
+    # dmat = generate_hyperplane_arrangement(X = X, P = 2000, seed = RANDOM_STATE)
+    beta=1e-5
+    P=1000
+    n = 80
+    d = 3
+    np.random.seed(RANDOM_STATE)
+    dmat=np.empty((n,0))
+    ## Finite approximation of all possible sign patterns
+    for i in range(P):
+        u=np.random.randn(d,1)
+        dmat=np.append(dmat,drelu(np.dot(X,u)),axis=1)
 
-#     dmat=(np.unique(dmat,axis=1))
+    dmat=(np.unique(dmat,axis=1))
 
-#     C, c, used = cutting_plane(X, y, dmat, 20)
-#     print(f'size of C: {len(C)}')
-#     print(f'used: {used}')
-#     n_train, d = X.shape
-#     m = dmat.shape[1]
-#     theta_matrix = np.reshape(c, (2*d, m), order='F')
-#     Uopt1_final_v, Uopt2_final_v, _ = convex_solve(used, X, y, dmat)
-#     Xtest = generate_Xtest(samp = 100)
-#     plot_decision_boundary(X, y, X_test, y_test, Uopt1_final_v, Uopt2_final_v, used, 'Cvx')
+    C, c, used = cutting_plane(X, y, dmat, 20)
+    print(f'size of C: {len(C)}')
+    print(f'used: {used}')
+    n_train, d = X.shape
+    m = dmat.shape[1]
+    theta_matrix = np.reshape(c, (2*d, m), order='F')
+    Uopt1_final_v, Uopt2_final_v, _ = convex_solve(used, X, y, dmat)
+    Xtest = generate_Xtest(samp = 100)
+    plot_decision_boundary(X, y, X_test, y_test, Uopt1_final_v, Uopt2_final_v, used, 'Cvx')
 
 
 
