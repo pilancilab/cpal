@@ -135,45 +135,6 @@ def generate_spiral_data(n=100, n_train = 80, n_shape = 50, seed = RANDOM_STATE,
     
     return X_all, y_all, X_train, y_train, X_test, y_test
 
-# def generate_spiral_data(n=100, train_budget=80):
-#     d = 3  # Dimensions of the data (x, y, bias)
-    
-#     def spiral_xy(i, spiral_num):
-#         """
-#         Create the data for a spiral.
-        
-#         Arguments:
-#             i runs from 0 to 96
-#             spiral_num is 1 or -1
-#         """
-#         φ = i / 16 * math.pi
-#         r = 6.5 * ((104 - i) / 104)
-#         x = (r * math.cos(φ) * spiral_num) / 13 + 0.5
-#         y = (r * math.sin(φ) * spiral_num) / 13 + 0.5
-#         return (x, y)
-    
-#     def spiral(spiral_num):
-#         return [spiral_xy(i, spiral_num) for i in range(n // 2)]
-    
-#     a = spiral(1)
-#     b = spiral(-1)
-#     X = 2 * np.concatenate((a, b), axis=0) - 1
-#     X = np.append(X, np.ones((n, 1)), axis=1)  # Add the bias term
-#     y = np.concatenate((np.ones(n // 2), np.zeros(n // 2)))  # Use 0 and 1 for labels
-    
-#     # Shuffle the data
-#     np.random.seed(RANDOM_STATE)
-#     idx = np.random.permutation(n)
-#     X = X[idx]
-#     y = y[idx]
-    
-#     # Split into training and testing sets
-#     X_train, y_train = X[:train_budget], y[:train_budget]
-#     X_test, y_test = X[train_budget:], y[train_budget:]
-#     #X_test, y_test = X_train, y_train
-    
-#     return X, y, X_train, y_train, X_test, y_test
-
 ### NEW ###
     
 def get_Spiral(handler):
@@ -223,8 +184,6 @@ def get_Blob(handler):
     X_test = torch.tensor(X_test, dtype=torch.float32)
     y_test = torch.tensor(y_test, dtype=torch.long)
     return Data(X_all, Y_all, X_train, y_train, X_test, y_test, handler)
-
-### 
 
 
 ### NEW Scikit-activeml regression data ###

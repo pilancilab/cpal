@@ -2,8 +2,6 @@
 Utils for the main CPAL algorithm.
 """
 import numpy as np
-import cvxpy as cp
-import matplotlib.pyplot as plt
 
 
 RANDOM_STATE = 0

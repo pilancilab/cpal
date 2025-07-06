@@ -3,10 +3,11 @@ Functions for plotting and evaluating the results of the CPAL algorithm.
 """
 
 import numpy as np
-from utils import relu, drelu
+from src.cpal.utils import relu, drelu
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+from scipy.stats import norm
 
 # 1. Classification
 # --------- Helper functions for plotting spiral decision boundary -----------------------
@@ -55,102 +56,167 @@ def generate_Xtest(samp=100, d=2):
     return Xtest
 
 # plotting
-def plot_decision_boundary(X, y, X_test, y_test, Uopt1v, Uopt2v, selected_indices, name):
-    # Define the grid range based on the data range
-    x_min, x_max = -1.5, 1.5 # 1.5
-    y_min, y_max = -1.5, 1.5
+def plot_decision_boundary(
+    X, y, X_test, y_test,
+    Uopt1v=None, Uopt2v=None,
+    U=None, w=None,
+    selected_indices=None,
+    name='Decision Boundary',
+    plot_type='cvx'
+):
+    """
+    Plots the decision boundary of a 2-layer ReLU network trained via either convex optimization or BP.
 
-    # Create a grid of points
-    x1 = np.linspace(x_min, x_max, 100)
-    x2 = np.linspace(y_min, y_max, 100)
-    x1, x2 = np.meshgrid(x1, x2)
-    Xtest = np.c_[x1.ravel(), x2.ravel()]
-    Xtest = np.append(Xtest, np.ones((Xtest.shape[0], 1)), axis=1)  # Add the bias term
-    
-    yest_cvx=np.sum(drelu(Xtest@Uopt1v)*(Xtest@Uopt1v)-drelu(Xtest@Uopt2v)*(Xtest@Uopt2v),axis=1)
-    yest_cvx = yest_cvx.reshape(x1.shape)
-    
-    # Map labels back to -1 and 1 for visualization
+    Parameters
+    ----------
+    X : np.ndarray
+        Training feature matrix of shape (n_samples, 2 or 3). Last column is bias if present.
+    y : np.ndarray
+        Training labels of shape (n_samples,). Should be +1 or -1.
+    X_test : np.ndarray
+        Test feature matrix of shape (n_test, 2 or 3). Last column is bias if present.
+    y_test : np.ndarray
+        Test labels of shape (n_test,). Should be +1 or -1.
+    Uopt1v : np.ndarray, optional
+        First-layer weight matrix from convex solution (d x m). Required if plot_type='cvx'.
+    Uopt2v : np.ndarray, optional
+        Second-layer weight matrix from convex solution (d x m). Required if plot_type='cvx'.
+    U : np.ndarray, optional
+        First-layer weight matrix from BP solution (d x 2m). Required if plot_type='bp'.
+    w : np.ndarray, optional
+        Second-layer weights from BP solution (2m x 1). Required if plot_type='bp'.
+    selected_indices : np.ndarray, optional
+        Indices of queried training points. If None, no queried points are highlighted.
+    name : str
+        Title of the plot and legend label.
+    plot_type : str, default 'cvx'
+        One of {'cvx', 'bp'}. Determines which model’s decision boundary to plot.
+
+    Returns
+    -------
+    None
+        Displays a matplotlib plot.
+    """
+    assert plot_type in ['cvx', 'bp'], "plot_type must be either 'cvx' or 'bp'"
+
+    # Define grid for decision boundary
+    x_min, x_max = -1.5, 1.5
+    y_min, y_max = -1.5, 1.5
+    x1, x2 = np.meshgrid(np.linspace(x_min, x_max, 100),
+                         np.linspace(y_min, y_max, 100))
+    Xtest_grid = np.c_[x1.ravel(), x2.ravel()]
+    Xtest_grid = np.append(Xtest_grid, np.ones((Xtest_grid.shape[0], 1)), axis=1)  # Add bias term
+
+    # Compute predictions based on method
+    if plot_type == 'cvx':
+        assert Uopt1v is not None and Uopt2v is not None, "Uopt1v and Uopt2v are required for CVX plotting"
+        scores = np.sum(
+            drelu(Xtest_grid @ Uopt1v) * (Xtest_grid @ Uopt1v) -
+            drelu(Xtest_grid @ Uopt2v) * (Xtest_grid @ Uopt2v),
+            axis=1
+        )
+    else:  # 'bp'
+        assert U is not None and w is not None, "U and w are required for BP plotting"
+        scores = relu(Xtest_grid @ U) @ w
+        scores = scores.flatten()
+
+    Z = scores.reshape(x1.shape)
+
+    # Normalize labels to {-1, 1}
     y_train_mapped = np.where(y == 1, 1, -1)
     y_test_mapped = np.where(y_test == 1, 1, -1)
-    
-    X_selected = X[selected_indices]
-    y_selected = y_train_mapped[selected_indices]
 
-    # Create subplots
+    # Plotting setup
     fig, ax = plt.subplots(figsize=(7, 7))
-
-    # Define the custom colors
-    colors = ['#920783', '#00b7c7']  # Switched the colors to match the image
+    colors = ['#920783', '#00b7c7']  # magenta, cyan
     cmap = mcolors.ListedColormap(colors)
 
-    # Plot the decision boundary with custom colors
-    ax.contourf(x1, x2, yest_cvx, alpha=0.3, cmap=cmap)
-    scatter_train = ax.scatter(X[:, 0], X[:, 1], c=y_train_mapped, edgecolor='k', s=20, cmap=cmap,
-                               label='Train Data')
-    scatter_test = ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test_mapped, edgecolor='k', s=20, cmap=cmap,
-                              marker='^', label = 'Test Data')
-    scatter_select = ax.scatter(X_selected[:,0], X_selected[:,1], c=y_selected, s=80, cmap=cmap, marker='x',
-                               label='Queried Data')
-    
+    # Plot decision region
+    ax.contourf(x1, x2, Z, levels=0, alpha=0.3, cmap=cmap)
+
+    # Plot training and test points
+    ax.scatter(X[:, 0], X[:, 1], c=y_train_mapped, edgecolor='k', s=20, cmap=cmap, label='Train')
+    ax.scatter(X_test[:, 0], X_test[:, 1], c=y_test_mapped, edgecolor='k', s=20, cmap=cmap, marker='^', label='Test')
+
+    # Optionally plot queried points
+    if selected_indices is not None:
+        X_sel = X[selected_indices]
+        y_sel = y_train_mapped[selected_indices]
+        ax.scatter(X_sel[:, 0], X_sel[:, 1], c=y_sel, cmap=cmap, marker='x', s=80, label='Queried')
+
     ax.set_xlabel('x1')
     ax.set_ylabel('x2')
     ax.set_xlim(x_min, x_max)
     ax.set_ylim(y_min, y_max)
-    ax.set_title(f'{name}')
-    plt.legend()
-    #plt.savefig(f'{name}.pdf', bbox_inches='tight')
+    ax.set_title(name)
+    ax.grid(True)
+    ax.legend()
+    plt.tight_layout()
     plt.show()
 
 # 2. Regression
 # ----- Evaluation and plotting functions for regression -----
 
-def evaluate_quadratic_regression_models(X_all, y_all, X, y, X_test, y_test,
-                                          Uopt1, Uopt2, U_bp, w_bp,
-                                          save_path='full_data_reg.pdf',
-                                          print_metrics=True,
-                                          plot=True):
+def evaluate_regression_models(X_all, y_true,
+                                X, y,
+                                X_test, y_test,
+                                Uopt1, Uopt2,
+                                U_bp, w_bp,
+                                print_metrics=True,
+                                plot=True,
+                                name='Regression Comparison'):
     """
-    Evaluate and compare convex and BP models for y = x^2 regression.
+    Evaluate and compare convex and BP models for general regression.
 
-    Args:
-        X_all: full data (n, d+1) with bias
-        y_all: full targets (n,)
-        X: training data (n_train, d+1)
-        y: training targets (n_train,)
-        X_test: test data (n_test, d+1)
-        y_test: test targets (n_test,)
-        Uopt1, Uopt2: convex solution weight matrices (d, m)
-        U_bp: learned input weights from BP (d, 2m)
-        w_bp: learned output weights from BP (2m, 1)
-        save_path: filename to save plot
-        print_metrics: whether to print RMSE and R²
-        plot: whether to show plot
+    Parameters
+    ----------
+    X_all : np.ndarray
+        Full data (n, d+1) with bias for prediction.
+    y_true : np.ndarray
+        True function values for X_all (same length as X_all).
+    X : np.ndarray
+        Training data (n_train, d+1).
+    y : np.ndarray
+        Training labels (n_train,).
+    X_test : np.ndarray
+        Test data (n_test, d+1).
+    y_test : np.ndarray
+        Test labels (n_test,).
+    Uopt1, Uopt2 : np.ndarray
+        Convex model weights (d, m).
+    U_bp : np.ndarray
+        BP input weights (d, 2m).
+    w_bp : np.ndarray
+        BP output weights (2m, 1).
+    print_metrics : bool
+        Whether to print RMSE and R² scores.
+    plot : bool
+        Whether to plot predicted curves.
+    name : str
+        Plot title.
 
-    Returns:
-        Dictionary of all RMSE and R² scores
+    Returns
+    -------
+    dict
+        Dictionary containing RMSE and R² scores for CVX and BP models.
     """
-    # Predict full set
+    # Predict over full set
     yest_cvx = np.sum(drelu(X_all @ Uopt1) * (X_all @ Uopt1) -
                       drelu(X_all @ Uopt2) * (X_all @ Uopt2), axis=1)
     yest_bp = relu(X_all @ U_bp) @ w_bp
     yest_bp = yest_bp.flatten()
 
-    # Predict train set
+    # Train predictions
     yest_cvx_train = np.sum(drelu(X @ Uopt1) * (X @ Uopt1) -
                             drelu(X @ Uopt2) * (X @ Uopt2), axis=1)
     yest_bp_train = relu(X @ U_bp) @ w_bp
     yest_bp_train = yest_bp_train.flatten()
 
-    # Predict test set
+    # Test predictions
     yest_cvx_test = np.sum(drelu(X_test @ Uopt1) * (X_test @ Uopt1) -
                            drelu(X_test @ Uopt2) * (X_test @ Uopt2), axis=1)
     yest_bp_test = relu(X_test @ U_bp) @ w_bp
     yest_bp_test = yest_bp_test.flatten()
-
-    # Ground truth: y = x^2
-    x_vals = X_all[:, 0]
-    y_true = x_vals ** 2
 
     # Metrics
     results = {
@@ -169,31 +235,31 @@ def evaluate_quadratic_regression_models(X_all, y_all, X, y, X_test, y_test,
     }
 
     if print_metrics:
-        print(f'Convex Optimization RMSE overall: {results["rmse_cvx"]:.4f}, R²: {results["r2_cvx"]:.4f}')
-        print(f'Backpropagation RMSE overall:    {results["rmse_bp"]:.4f}, R²: {results["r2_bp"]:.4f}')
-        print(f'Convex Optimization RMSE train:  {results["rmse_cvx_train"]:.4f}, R²: {results["r2_cvx_train"]:.4f}')
-        print(f'Backpropagation RMSE train:      {results["rmse_bp_train"]:.4f}, R²: {results["r2_bp_train"]:.4f}')
-        print(f'Convex Optimization RMSE test:   {results["rmse_cvx_test"]:.4f}, R²: {results["r2_cvx_test"]:.4f}')
-        print(f'Backpropagation RMSE test:       {results["rmse_bp_test"]:.4f}, R²: {results["r2_bp_test"]:.4f}')
+        print(f'Convex RMSE full:  {results["rmse_cvx"]:.4f}, R²: {results["r2_cvx"]:.4f}')
+        print(f'BP RMSE full:      {results["rmse_bp"]:.4f}, R²: {results["r2_bp"]:.4f}')
+        print(f'Convex RMSE train: {results["rmse_cvx_train"]:.4f}, R²: {results["r2_cvx_train"]:.4f}')
+        print(f'BP RMSE train:     {results["rmse_bp_train"]:.4f}, R²: {results["r2_bp_train"]:.4f}')
+        print(f'Convex RMSE test:  {results["rmse_cvx_test"]:.4f}, R²: {results["r2_cvx_test"]:.4f}')
+        print(f'BP RMSE test:      {results["rmse_bp_test"]:.4f}, R²: {results["r2_bp_test"]:.4f}')
 
     if plot:
+        x_vals = X_all[:, 0]
         sort_idx = np.argsort(x_vals)
         plt.figure(figsize=(10, 6))
-        plt.plot(x_vals[sort_idx], y_true[sort_idx], 'k--', label='True y = x²', linewidth=2)
+        plt.plot(x_vals[sort_idx], y_true[sort_idx], 'k--', label='Ground Truth', linewidth=2)
         plt.plot(x_vals[sort_idx], yest_cvx[sort_idx], 'r-', label='Convex ReLU', linewidth=2)
         plt.plot(x_vals[sort_idx], yest_bp[sort_idx], 'c-', label='BP ReLU', linewidth=2)
         plt.xlabel('x')
         plt.ylabel('y')
-        plt.title('Quadratic Regression: Convex ReLU vs BP')
+        plt.title(name)
         plt.legend()
         plt.grid(True)
         plt.tight_layout()
-        # plt.savefig(save_path)
         plt.show()
 
     return results
 
-def compare_accuracy(Xacc, yacc, Uopt1v, Uopt2v, U, w, verbose=True):
+def evaluate_classification_models(Xacc, yacc, Uopt1v, Uopt2v, U, w, verbose=True):
     """
     Compare accuracy between convex (CVX) model and backprop (BP) model.
 
@@ -230,6 +296,83 @@ def compare_accuracy(Xacc, yacc, Uopt1v, Uopt2v, U, w, verbose=True):
         print(f'Accuracy CVX: {acc_cvx:.4f}, Accuracy BP: {acc_bp:.4f}')
 
     return acc_cvx, acc_bp
+
+def evaluate_model_performance(task,
+                                X_all=None, y_true=None,
+                                X=None, y=None,
+                                X_test=None, y_test=None,
+                                Uopt1=None, Uopt2=None,
+                                U=None, w=None,
+                                print_metrics=True,
+                                plot=True,
+                                name=None):
+    """
+    Unified evaluation wrapper for regression and classification tasks.
+
+    Parameters
+    ----------
+    task : str
+        One of {'r', 'c'}: 'r' for regression, 'c' for classification.
+    X_all : np.ndarray, optional
+        For regression: full input data (n, d+1) with bias.
+    y_true : np.ndarray, optional
+        For regression: true function values corresponding to X_all.
+    X : np.ndarray, optional
+        For regression: training data.
+    y : np.ndarray, optional
+        For regression: training targets.
+    X_test : np.ndarray, optional
+        For regression and classification: test data.
+    y_test : np.ndarray, optional
+        For regression and classification: test targets or labels.
+    Uopt1, Uopt2 : np.ndarray
+        Convex model weights.
+    U, w : np.ndarray
+        BP model weights.
+    print_metrics : bool
+        Whether to print metrics.
+    plot : bool
+        Whether to show regression plots.
+    name : str, optional
+        Title for regression plot.
+
+    Returns
+    -------
+    dict or tuple
+        Regression: dict of RMSE and R² scores.
+        Classification: tuple of (accuracy_cvx, accuracy_bp).
+    """
+    if task == 'r':
+        assert X_all is not None and y_true is not None and X_test is not None and y_test is not None
+        return evaluate_regression_models(
+            X_all=X_all,
+            y_true=y_true,
+            X=X,
+            y=y,
+            X_test=X_test,
+            y_test=y_test,
+            Uopt1=Uopt1,
+            Uopt2=Uopt2,
+            U_bp=U,
+            w_bp=w,
+            print_metrics=print_metrics,
+            plot=plot,
+            name=name or 'Regression Performance'
+        )
+    elif task == 'c':
+        assert X_test is not None and y_test is not None
+        return evaluate_classification_models(
+            Xacc=X_test,
+            yacc=y_test,
+            Uopt1v=Uopt1,
+            Uopt2v=Uopt2,
+            U=U,
+            w=w,
+            verbose=print_metrics
+        )
+    else:
+        raise ValueError(f"Unsupported task: {task}. Choose 'r' (regression) or 'c' (classification).")
+
 
 # plotting functions
 def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, y, X_test, y_test, used, alpha = 0.95, plot_band = True, title = 'Quadratic Regression: True vs Predicted with Training Points'):

@@ -1,5 +1,5 @@
 """
-Implements Cutting-Plane based active learning (CPAL).
+Implements Cutting-Plane based active learning (CPAL) for both classification and regression tasks.
 """
 import cvxpy as cp
 import numpy as np
@@ -19,7 +19,6 @@ def center(S, X, dmat, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e-4
     constraints = []
     if reg:
         U = cp.reshape(s, (2*d, m), order='F')
-        #obj += cp.log(reg_value - beta*(cp.mixed_norm(U[:d].T,2,1)+cp.mixed_norm(U[d:].T,2,1)))
         constraints = [beta*(cp.mixed_norm(U[:d].T,2,1)+cp.mixed_norm(U[d:].T,2,1)) <= reg_value]
     if len(S) > 0:
         obj += cp.sum([cp.log(rhs - lhs @ s) for lhs, rhs in S])
@@ -40,9 +39,6 @@ def center(S, X, dmat, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e-4
                 pass
     
         raise RuntimeError("All solvers failed to find an optimal solution.")             
-    
-    # prob = cp.Problem(cp.Maximize(obj), constraints)
-    # prob.solve(solver=cp.MOSEK)
 
     return s.value
 
@@ -69,7 +65,6 @@ def cut(S, x, y, dmat_row):
     relu_constraint = -np.kron(np.diag(2*dmat_row-np.ones(m)), np.kron(np.eye(2), x))
     for lhs in relu_constraint:
         S.append((lhs, 0))
-    # potentially remove redundant constraints here
 
 
 def query(C, c, data_tried, data_used, X, dmat, M=100):
@@ -123,7 +118,7 @@ def convex_solve(used, X, y, dmat, beta = 1e-5):
     return Uopt1_final.value, Uopt2_final.value, beta*(cp.mixed_norm(Uopt1_final.value.T,2,1)+cp.mixed_norm(Uopt2_final.value.T,2,1))
 
 
-# cutting plane method
+# cutting plane method for regression
 def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 1e-3, R = 1, boxinit=False):
     n_train, d = X.shape
     m=dmat.shape[1]
@@ -148,10 +143,6 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
         if len(data_tried) == n_train:
             data_tried = []
         if did_cut:
-            #if len(data_used) > 0:
-            #    _, _, reg_value = convex_solve(data_used)
-            #else:
-            #    reg_value = 1e-5
             c = center(Ct, X=X, R=R, dmat = dmat, d = d)
             did_cut = False
         i_mini, i_maxi, i_minabs = query(Ct, c, data_tried, data_used, X, dmat)
@@ -159,20 +150,14 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
             return Ct, c, data_used
         data_tried += [i_mini, i_maxi]
         data_tried = list(set(data_tried))
-        #if it >= 30:
-        #    print(X[i_mini], np.sign(pred_point(i_mini, c)), y[i_mini])
-        #    print(X[i_maxi], np.sign(pred_point(i_maxi, c)), y[i_maxi])
-            #print(X[i_minabs], np.sign(pred_point(i_minabs, c)), y[i_minabs])
-        if True: #len(data_used) < 4 * n_points // 5:
+        if did_cut:
             if np.linalg.norm(pred_point(i_mini, c, X, dmat) - y[i_mini]) > threshold:
                 print(f'Cutting at iteration {it}')
-                #cut(Ct, X[i_mini], y[i_mini], dmat[i_mini])
                 cut_reg(Ct, X[i_mini], y[i_mini], dmat[i_mini],threshold)
                 data_used.append(i_mini)
                 did_cut = True
             if np.linalg.norm(pred_point(i_maxi, c, X, dmat)- y[i_maxi]) > threshold:
                 print(f'Cutting at iteration {it}')
-                #cut(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi])
                 cut_reg(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi],threshold)
                 data_used.append(i_maxi)
                 did_cut = True
