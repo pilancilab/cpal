@@ -25,7 +25,7 @@ def linear_query(w, X, y, data_tried, data_used):
     minabs = np.inf
     i_minabs = -1
 
-    for i in range(n_train): # search in finite data (D implicit) set to re-use dmat
+    for i in range(n_train): 
         if i not in data_tried and i not in data_used:
             pred = y[i] * np.dot(w, X[i])  # linear prediction function
             if pred < mini:
@@ -126,7 +126,7 @@ def linear_cutting_plane_classification(X, y, m, n_points=100, maxit=10000, R = 
 
 def linear_cutting_plane_regression(X, y, n_points=100, maxit=10000, threshold = 1e-3, R = 1, boxinit=False):
 
-    n_train, d = X.shape
+    _, d = X.shape
     R = 1
     C0_lower_linear = -R*np.ones(d)
     C0_upper_linear = R*np.ones(d)
@@ -148,8 +148,6 @@ def linear_cutting_plane_regression(X, y, n_points=100, maxit=10000, threshold =
     #print(it)
     #print(len(data_used))
     while len(data_used) < n_points and it < maxit: 
-        if len(data_tried) == n_train:
-            data_tried = []
         if did_cut:
             c = linear_center(Ct, d, R=R) # cannot be 0
             # Offset the center if it's too close to zero
@@ -162,31 +160,17 @@ def linear_cutting_plane_regression(X, y, n_points=100, maxit=10000, threshold =
             return Ct, c, data_used
         data_tried += [i_mini, i_maxi]
         data_tried = list(set(data_tried))
-        if True: 
-            if np.linalg.norm(y[i_mini]-np.dot(c,X[i_mini])) > threshold:
-                #print(1,'y')
-                print(f'Cutting at iteration {it}')
-                linear_cut_regression(Ct, X[i_mini], y[i_mini], threshold)
-                data_used.append(i_mini)
-                did_cut = True
-            if np.linalg.norm(y[i_maxi]-np.dot(c,X[i_maxi])) > threshold:
-                #print(2,'y')
-                print(f'Cutting at iteration {it}')
-                linear_cut_regression(Ct, X[i_maxi], y[i_maxi], threshold)
-                data_used.append(i_maxi)
-                did_cut = True
-        else:
-            if np.linalg.norm(y[i_minabs]*np.dot(c,X[i_minabs])) > threshold:
-                #print(3,'y')
-                print(f'Cutting at iteration {it}')
-                linear_cut(Ct, X[i_minabs], y[i_minabs], threshold)
-                data_used.append(i_minabs)
-                did_cut = True
+        if np.linalg.norm(y[i_mini]-np.dot(c,X[i_mini])) > threshold:
+            print(f'Cutting at iteration {it}')
+            linear_cut_regression(Ct, X[i_mini], y[i_mini], threshold)
+            data_used.append(i_mini)
+            did_cut = True
+        if np.linalg.norm(y[i_maxi]-np.dot(c,X[i_maxi])) > threshold:
+            print(f'Cutting at iteration {it}')
+            linear_cut_regression(Ct, X[i_maxi], y[i_maxi], threshold)
+            data_used.append(i_maxi)
+            did_cut = True
         it += 1
-
-        #data_used = list(set(data_used))
-
-        #print(len(data_tried))
 
     return Ct, c, data_used
 
@@ -327,15 +311,67 @@ def visualize_regression_linear(c, X_all, X, y, X_test, y_test, used, alpha = 0.
     plt.savefig(f'plots/Linear.pdf', bbox_inches='tight')
     plt.show()
 
+def visualize_regression_linear(c, X_all, X_train, y_train, X_test, y_test, used, alpha = 0.95, plot_band = True):
+    
+    X_selected = X_train[used]
+    y_selected = y_train[used]
 
-# if __name__ == "__main__":
-#     import sys
-#     sys.path.append('.')
-#     from src.cpal.synthetic_data import *
-#     X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression(seed = RANDOM_STATE, plot = False)
+    x_vals = X_all[:, 0]
+    
+    # Plotting the true quadratic curve, predicted curves, and training points
+    plt.figure(figsize=(8, 8))
+    # Visualization and accuracy
+    y_true = x_vals ** 2 
+    # Plot the true curve y = x^2
+    plt.plot(x_vals, y_true, 'k-', label='True y = x^2')
+    plt.scatter(X_selected[:,:-1], y_selected, color='blue', s=50)
+    plt.scatter(X_test[:,:-1], y_test, color='red', label='Test Data', alpha=0.5, marker='x')
 
-#     C, c, used = linear_cutting_plane_regression(X = X, y=y, n_points = 4)
-#     print(f'size of C: {len(C)}')
-#     print(f'used: {used}')
+    # overall result
+    yest_linear=np.dot(X_all,c)
 
-#     visualize_regression_linear(c, X_all, X, y, X_test, y_test, used, alpha = 0.95, plot_band = False)
+    train_X_axis = X_train[:,:-1][:3].flatten() # for plotting purposes
+    test_X_axis = X_test[:,:-1][:3].flatten()
+    # train set result
+    yest_linear_train=np.dot(X_train,c)
+    # test set result
+    yest_linear_test=np.dot(X_test,c)
+
+    # Calculate RMSE for both convex optimization and backpropagation predictions
+    rmse_cvx = np.sqrt(mean_squared_error(y_true, yest_linear)) # overall
+    rmse_cvx_train = np.sqrt(mean_squared_error(y_train, yest_linear_train)) # train
+    rmse_cvx_test = np.sqrt(mean_squared_error(y_test, yest_linear_test)) # test
+    
+    # Calculate R^2 for both convex optimization and backpropagation predictions
+    r2_cvx = r2_score(y_true, yest_linear)
+    r2_cvx_train = r2_score(y_train, yest_linear_train)
+    r2_cvx_test = r2_score(y_test, yest_linear_test)
+    
+    # Print out the results
+    print(f'RMSE overall: {rmse_cvx:.4f}, R^2: {r2_cvx:.4f}')
+    print(f'RMSE over train set: {rmse_cvx_train:.4f}, R^2: {r2_cvx_train:.4f}')
+    print(f'RMSE over test set: {rmse_cvx_test:.4f}, R^2: {r2_cvx_test:.4f}')
+    
+    plt.plot(x_vals, yest_linear, label=f'Prediction (Linear)', linewidth=2)
+    
+    # if plot band:
+    if plot_band:
+        # plot the alpha% confidence band
+        residuals = y_true - yest_linear
+        std_error = np.std(residuals)
+        z_value = norm.ppf(1 - (1 - alpha) / 2)
+        # Calculate the confidence intervals
+        upper_bound = yest_linear + z_value * std_error
+        lower_bound = yest_linear - z_value * std_error
+
+        plt.fill_between(x_vals, lower_bound, upper_bound, color='lightcyan', alpha=0.5, label=f'{int(alpha*100)}% Confidence Band')
+
+    plt.title(f'Linear Cutting Plane on Quadratic Regression')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.legend()
+    plt.savefig(f'Linear_quadratic.pdf', bbox_inches='tight')
+    plt.show()
+
+
+

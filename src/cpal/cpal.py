@@ -1,5 +1,5 @@
 """
-Implements Cutting-Plane based active learning (CPAL) for both classification and regression tasks.
+Implements Cutting-Plane based active learning (CPAL) on Two-Layer ReLU Networks for both classification and regression tasks.
 """
 import cvxpy as cp
 import numpy as np
@@ -117,55 +117,8 @@ def convex_solve(used, X, y, dmat, beta = 1e-5):
 
     return Uopt1_final.value, Uopt2_final.value, beta*(cp.mixed_norm(Uopt1_final.value.T,2,1)+cp.mixed_norm(Uopt2_final.value.T,2,1))
 
-
-# cutting plane method for regression
-def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 1e-3, R = 1, boxinit=False):
-    n_train, d = X.shape
-    m=dmat.shape[1]
-    C0_lower = -R*np.ones(2*d*m)
-    C0_upper = R*np.ones(2*d*m)
-
-    data_tried = []
-    data_used = []
-
-    Ct = []
-    if boxinit:
-        for i, (l, u) in enumerate(zip(C0_lower, C0_upper)):
-            one_vec = np.zeros(2*d*m)
-            one_vec[i] = 1
-            Ct.append((one_vec, u))
-            Ct.append((-one_vec, -l))
-
-    c = None
-    did_cut = True
-    it = 0
-    while len(data_used) < n_points and it < maxit:
-        if len(data_tried) == n_train:
-            data_tried = []
-        if did_cut:
-            c = center(Ct, X=X, R=R, dmat = dmat)
-            did_cut = False
-        i_mini, i_maxi, i_minabs = query(c, data_tried, data_used, X, dmat)
-        if i_mini is None:
-            return Ct, c, data_used
-        data_tried += [i_mini, i_maxi]
-        data_tried = list(set(data_tried))
-        if np.linalg.norm(pred_point(i_mini, c, X, dmat) - y[i_mini]) > threshold:
-            print(f'Cutting at iteration {it}')
-            cut_reg(Ct, X[i_mini], y[i_mini], dmat[i_mini],threshold)
-            data_used.append(i_mini)
-            did_cut = True
-        if np.linalg.norm(pred_point(i_maxi, c, X, dmat)- y[i_maxi]) > threshold:
-            print(f'Cutting at iteration {it}')
-            cut_reg(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi],threshold)
-            data_used.append(i_maxi)
-            did_cut = True
-        it += 1
-
-    return Ct, c, data_used
-
-# cutting-plane classification
-def cutting_plane_classification(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
+# cutting-plane algorithm for classification and regression tasks
+def cutting_plane(task, X, y, dmat, n_points=100, maxit=10000, R = 1, threshold = 1e-3, boxinit=False):
     _, d = X.shape
     m=dmat.shape[1]
     C0_lower = -R*np.ones(2*d*m)
@@ -195,16 +148,31 @@ def cutting_plane_classification(X, y, dmat, n_points=100, maxit=10000, R = 1, b
             return Ct, c, data_used
         data_tried += [i_mini, i_maxi]
         data_tried = list(set(data_tried))
-        if np.sign(pred_point(i_mini, c, X, dmat)) != y[i_mini]:
-            print(f'Cutting at iteration {it}')
-            cut_classification(Ct, X[i_mini], y[i_mini], dmat[i_mini])
-            data_used.append(i_mini)
-            did_cut = True
-        if np.sign(pred_point(i_maxi, c, X, dmat)) != y[i_maxi]:
-            print(f'Cutting at iteration {it}')
-            cut_classification(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi])
-            data_used.append(i_maxi)
-            did_cut = True
+        if task == 'c':
+            if np.sign(pred_point(i_mini, c, X, dmat)) != y[i_mini]:
+                print(f'Cutting at iteration {it}')
+                cut_classification(Ct, X[i_mini], y[i_mini], dmat[i_mini])
+                data_used.append(i_mini)
+                did_cut = True
+            if np.sign(pred_point(i_maxi, c, X, dmat)) != y[i_maxi]:
+                print(f'Cutting at iteration {it}')
+                cut_classification(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi])
+                data_used.append(i_maxi)
+                did_cut = True
+        elif task == 'r':
+            if np.linalg.norm(pred_point(i_mini, c, X, dmat) - y[i_mini]) > threshold:
+                print(f'Cutting at iteration {it}')
+                cut_reg(Ct, X[i_mini], y[i_mini], dmat[i_mini],threshold)
+                data_used.append(i_mini)
+                did_cut = True
+            if np.linalg.norm(pred_point(i_maxi, c, X, dmat)- y[i_maxi]) > threshold:
+                print(f'Cutting at iteration {it}')
+                cut_reg(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi],threshold)
+                data_used.append(i_maxi)
+                did_cut = True
+        else:
+            raise ValueError("Task must be either 'c' for classification or 'r' for regression.")
+
         it += 1
     
     return Ct, c, data_used
