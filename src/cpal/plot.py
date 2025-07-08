@@ -158,15 +158,15 @@ def plot_decision_boundary(
 # ----- Evaluation and plotting functions for regression -----
 
 def evaluate_regression_models(X_all, y_true,
-                                X, y,
+                                X_train, y_train,
                                 X_test, y_test,
                                 Uopt1, Uopt2,
-                                U_bp, w_bp,
+                                U_bp=None, w_bp=None,
                                 print_metrics=True,
                                 plot=True,
                                 name='Regression Comparison'):
     """
-    Evaluate and compare convex and BP models for general regression.
+    Evaluate and compare convex and optional BP models for general regression.
 
     Parameters
     ----------
@@ -184,9 +184,9 @@ def evaluate_regression_models(X_all, y_true,
         Test labels (n_test,).
     Uopt1, Uopt2 : np.ndarray
         Convex model weights (d, m).
-    U_bp : np.ndarray
+    U_bp : np.ndarray, optional
         BP input weights (d, 2m).
-    w_bp : np.ndarray
+    w_bp : np.ndarray, optional
         BP output weights (2m, 1).
     print_metrics : bool
         Whether to print RMSE and R² scores.
@@ -198,49 +198,51 @@ def evaluate_regression_models(X_all, y_true,
     Returns
     -------
     dict
-        Dictionary containing RMSE and R² scores for CVX and BP models.
+        Dictionary containing RMSE and R² scores for CVX and (if available) BP models.
     """
-    # Predict over full set
+    # Convex predictions
     yest_cvx = np.sum(drelu(X_all @ Uopt1) * (X_all @ Uopt1) -
                       drelu(X_all @ Uopt2) * (X_all @ Uopt2), axis=1)
-    yest_bp = relu(X_all @ U_bp) @ w_bp
-    yest_bp = yest_bp.flatten()
-
-    # Train predictions
-    yest_cvx_train = np.sum(drelu(X @ Uopt1) * (X @ Uopt1) -
-                            drelu(X @ Uopt2) * (X @ Uopt2), axis=1)
-    yest_bp_train = relu(X @ U_bp) @ w_bp
-    yest_bp_train = yest_bp_train.flatten()
-
-    # Test predictions
+    yest_cvx_train = np.sum(drelu(X_train @ Uopt1) * (X_train @ Uopt1) -
+                            drelu(X_train @ Uopt2) * (X_train @ Uopt2), axis=1)
     yest_cvx_test = np.sum(drelu(X_test @ Uopt1) * (X_test @ Uopt1) -
                            drelu(X_test @ Uopt2) * (X_test @ Uopt2), axis=1)
-    yest_bp_test = relu(X_test @ U_bp) @ w_bp
-    yest_bp_test = yest_bp_test.flatten()
 
-    # Metrics
     results = {
         'rmse_cvx': np.sqrt(mean_squared_error(y_true, yest_cvx)),
-        'rmse_bp': np.sqrt(mean_squared_error(y_true, yest_bp)),
         'r2_cvx': r2_score(y_true, yest_cvx),
-        'r2_bp': r2_score(y_true, yest_bp),
-        'rmse_cvx_train': np.sqrt(mean_squared_error(y, yest_cvx_train)),
-        'rmse_bp_train': np.sqrt(mean_squared_error(y, yest_bp_train)),
-        'r2_cvx_train': r2_score(y, yest_cvx_train),
-        'r2_bp_train': r2_score(y, yest_bp_train),
+        'rmse_cvx_train': np.sqrt(mean_squared_error(y_train, yest_cvx_train)),
+        'r2_cvx_train': r2_score(y_train, yest_cvx_train),
         'rmse_cvx_test': np.sqrt(mean_squared_error(y_test, yest_cvx_test)),
-        'rmse_bp_test': np.sqrt(mean_squared_error(y_test, yest_bp_test)),
         'r2_cvx_test': r2_score(y_test, yest_cvx_test),
-        'r2_bp_test': r2_score(y_test, yest_bp_test),
     }
+
+    # BP predictions (if provided)
+    if U_bp is not None and w_bp is not None:
+        yest_bp = relu(X_all @ U_bp) @ w_bp
+        yest_bp = yest_bp.flatten()
+        yest_bp_train = relu(X_train @ U_bp) @ w_bp
+        yest_bp_train = yest_bp_train.flatten()
+        yest_bp_test = relu(X_test @ U_bp) @ w_bp
+        yest_bp_test = yest_bp_test.flatten()
+
+        results.update({
+            'rmse_bp': np.sqrt(mean_squared_error(y_true, yest_bp)),
+            'r2_bp': r2_score(y_true, yest_bp),
+            'rmse_bp_train': np.sqrt(mean_squared_error(y_train, yest_bp_train)),
+            'r2_bp_train': r2_score(y_train, yest_bp_train),
+            'rmse_bp_test': np.sqrt(mean_squared_error(y_test, yest_bp_test)),
+            'r2_bp_test': r2_score(y_test, yest_bp_test),
+        })
 
     if print_metrics:
         print(f'Convex RMSE full:  {results["rmse_cvx"]:.4f}, R²: {results["r2_cvx"]:.4f}')
-        print(f'BP RMSE full:      {results["rmse_bp"]:.4f}, R²: {results["r2_bp"]:.4f}')
         print(f'Convex RMSE train: {results["rmse_cvx_train"]:.4f}, R²: {results["r2_cvx_train"]:.4f}')
-        print(f'BP RMSE train:     {results["rmse_bp_train"]:.4f}, R²: {results["r2_bp_train"]:.4f}')
         print(f'Convex RMSE test:  {results["rmse_cvx_test"]:.4f}, R²: {results["r2_cvx_test"]:.4f}')
-        print(f'BP RMSE test:      {results["rmse_bp_test"]:.4f}, R²: {results["r2_bp_test"]:.4f}')
+        if "rmse_bp" in results:
+            print(f'BP RMSE full:      {results["rmse_bp"]:.4f}, R²: {results["r2_bp"]:.4f}')
+            print(f'BP RMSE train:     {results["rmse_bp_train"]:.4f}, R²: {results["r2_bp_train"]:.4f}')
+            print(f'BP RMSE test:      {results["rmse_bp_test"]:.4f}, R²: {results["r2_bp_test"]:.4f}')
 
     if plot:
         x_vals = X_all[:, 0]
@@ -248,7 +250,8 @@ def evaluate_regression_models(X_all, y_true,
         plt.figure(figsize=(10, 6))
         plt.plot(x_vals[sort_idx], y_true[sort_idx], 'k--', label='Ground Truth', linewidth=2)
         plt.plot(x_vals[sort_idx], yest_cvx[sort_idx], 'r-', label='Convex ReLU', linewidth=2)
-        plt.plot(x_vals[sort_idx], yest_bp[sort_idx], 'c-', label='BP ReLU', linewidth=2)
+        if "rmse_bp" in results:
+            plt.plot(x_vals[sort_idx], yest_bp[sort_idx], 'c-', label='BP ReLU', linewidth=2)
         plt.xlabel('x')
         plt.ylabel('y')
         plt.title(name)
@@ -259,47 +262,105 @@ def evaluate_regression_models(X_all, y_true,
 
     return results
 
-def evaluate_classification_models(Xacc, yacc, Uopt1v, Uopt2v, U, w, verbose=True):
-    """
-    Compare accuracy between convex (CVX) model and backprop (BP) model.
 
-    Args:
-        Xacc (np.ndarray): Data matrix for accuracy evaluation.
-        yacc (np.ndarray): Ground-truth binary labels (shape (n,) or (n,1)).
-        Uopt1v (np.ndarray): CVX first-layer weights (d, m).
-        Uopt2v (np.ndarray): CVX second-layer weights (d, m).
-        U (np.ndarray): Backprop first-layer weights.
-        w (np.ndarray): Backprop output layer weights.
-        verbose (bool): If True, prints accuracy scores.
-
-    Returns:
-        tuple: (acc_cvx, acc_bp) — accuracy scores for CVX and BP models.
+def evaluate_classification_models(Xacc, yacc, Uopt1v, Uopt2v, U=None, w=None,
+                                   X_train=None, y_train=None, verbose=True):
     """
-    # Ensure labels are 1D
+    Compare classification performance between convex (CVX) and optionally backpropagation (BP) models.
+
+    Parameters
+    ----------
+    Xacc : np.ndarray
+        Test data matrix for accuracy evaluation (n_test, d).
+    yacc : np.ndarray
+        Ground-truth binary labels for test set (n_test,).
+    Uopt1v : np.ndarray
+        CVX first-layer weights of shape (d, m).
+    Uopt2v : np.ndarray
+        CVX second-layer weights of shape (d, m).
+    U : np.ndarray, optional
+        Backpropagation first-layer weights (d, 2m).
+    w : np.ndarray, optional
+        Backpropagation output weights (2m, 1).
+    X_train : np.ndarray, optional
+        Training input data (n_train, d).
+    y_train : np.ndarray, optional
+        Training binary labels.
+    verbose : bool, optional
+        If True, prints detailed evaluation results.
+
+    Returns
+    -------
+    dict
+        Dictionary with accuracy and count metrics for CVX (and optionally BP) on both train and test sets.
+    """
+    results = {}
     yacc = yacc.flatten()
 
-    # CVX prediction
-    Z1 = Xacc @ Uopt1v
-    Z2 = Xacc @ Uopt2v
-    yhat_cvx = np.sum(drelu(Z1) * Z1 - drelu(Z2) * Z2, axis=1)
-    yacc_cvx = np.sign(yhat_cvx)
+    # --- CVX Test ---
+    Z1_test = Xacc @ Uopt1v
+    Z2_test = Xacc @ Uopt2v
+    yhat_cvx_test = np.sum(drelu(Z1_test) * Z1_test - drelu(Z2_test) * Z2_test, axis=1)
+    pred_cvx_test = np.sign(yhat_cvx_test)
+    correct_cvx_test = np.sum(pred_cvx_test == yacc)
+    acc_cvx_test = correct_cvx_test / len(yacc)
 
-    # BP prediction
-    yhat_bp = relu(Xacc @ U) @ w
-    yacc_bp = np.sign(yhat_bp.flatten())
+    results["cvx_correct_test"] = correct_cvx_test
+    results["cvx_acc_test"] = acc_cvx_test
 
-    # Accuracy
-    acc_cvx = np.mean(yacc_cvx == yacc)
-    acc_bp = np.mean(yacc_bp == yacc)
+    # --- CVX Train (if available) ---
+    if X_train is not None and y_train is not None:
+        y_train = y_train.flatten()
+        Z1_train = X_train @ Uopt1v
+        Z2_train = X_train @ Uopt2v
+        yhat_cvx_train = np.sum(drelu(Z1_train) * Z1_train - drelu(Z2_train) * Z2_train, axis=1)
+        pred_cvx_train = np.sign(yhat_cvx_train)
+        correct_cvx_train = np.sum(pred_cvx_train == y_train)
+        acc_cvx_train = correct_cvx_train / len(y_train)
 
+        results["cvx_correct_train"] = correct_cvx_train
+        results["cvx_acc_train"] = acc_cvx_train
+
+    # --- BP (if provided) ---
+    if U is not None and w is not None:
+        yhat_bp_test = relu(Xacc @ U) @ w
+        pred_bp_test = np.sign(yhat_bp_test.flatten())
+        correct_bp_test = np.sum(pred_bp_test == yacc)
+        acc_bp_test = correct_bp_test / len(yacc)
+
+        results["bp_correct_test"] = correct_bp_test
+        results["bp_acc_test"] = acc_bp_test
+
+        if X_train is not None and y_train is not None:
+            yhat_bp_train = relu(X_train @ U) @ w
+            pred_bp_train = np.sign(yhat_bp_train.flatten())
+            correct_bp_train = np.sum(pred_bp_train == y_train)
+            acc_bp_train = correct_bp_train / len(y_train)
+
+            results["bp_correct_train"] = correct_bp_train
+            results["bp_acc_train"] = acc_bp_train
+
+    # --- Verbose Output ---
     if verbose:
-        print(f'Accuracy CVX: {acc_cvx:.4f}, Accuracy BP: {acc_bp:.4f}')
+        print("Convex Model (CVX):")
+        print(f"  # correct on test set:  {correct_cvx_test}")
+        print(f"  accuracy on test set:  {acc_cvx_test:.4f}")
+        if "cvx_correct_train" in results:
+            print(f"  # correct on train set: {correct_cvx_train}")
+            print(f"  accuracy on train set: {acc_cvx_train:.4f}")
+        if "bp_correct_test" in results:
+            print("\nBackpropagation Model (BP):")
+            print(f"  # correct on test set:  {correct_bp_test}")
+            print(f"  accuracy on test set:  {acc_bp_test:.4f}")
+            if "bp_correct_train" in results:
+                print(f"  # correct on train set: {correct_bp_train}")
+                print(f"  accuracy on train set: {acc_bp_train:.4f}")
 
-    return acc_cvx, acc_bp
+    return results
 
 def evaluate_model_performance(task,
                                 X_all=None, y_true=None,
-                                X=None, y=None,
+                                X_train=None, y_train=None,
                                 X_test=None, y_test=None,
                                 Uopt1=None, Uopt2=None,
                                 U=None, w=None,
@@ -347,8 +408,8 @@ def evaluate_model_performance(task,
         return evaluate_regression_models(
             X_all=X_all,
             y_true=y_true,
-            X=X,
-            y=y,
+            X_train=X_train,
+            y_train=y_train,
             X_test=X_test,
             y_test=y_test,
             Uopt1=Uopt1,
@@ -368,6 +429,8 @@ def evaluate_model_performance(task,
             Uopt2v=Uopt2,
             U=U,
             w=w,
+            X_train=X_train,
+            y_train=y_train,
             verbose=print_metrics
         )
     else:
@@ -375,12 +438,13 @@ def evaluate_model_performance(task,
 
 
 # plotting functions
-def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, y, X_test, y_test, used, alpha = 0.95, plot_band = True, title = 'Quadratic Regression: True vs Predicted with Training Points'):
+def visualize_quadratic_regression(Uopt1v_list, Uopt2v_list, X_all, X_train, y_train, X_test, y_test, used, alpha = 0.95, plot_band = True, title = 'Quadratic Regression: True vs Predicted with Training Points'):
     
-    X_selected = X[used]
-    y_selected = y[used]
+    X_selected = X_train[used]
+    y_selected = y_train[used]
 
-    x_vals = X_all[:,:-1]
+    # x_vals = X_all[:,:-1]
+    x_vals = X_all[:, 0]
     
     # Plotting the true quadratic curve, predicted curves, and training points
     plt.figure(figsize=(8, 8))
@@ -397,21 +461,21 @@ def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, y, X_test, y_test, 
         # overall result
         yest_cvx=np.sum(drelu(X_all@Uopt1v)*(X_all@Uopt1v)-drelu(X_all@Uopt2v)*(X_all@Uopt2v),axis=1)
         
-        train_X_axis = X[:,:-1][:3].flatten() # for plotting purposes
+        train_X_axis = X_train[:,:-1][:3].flatten() # for plotting purposes
         test_X_axis = X_test[:,:-1][:3].flatten()
         # train set result
-        yest_cvx_train=np.sum(drelu(X@Uopt1v)*(X@Uopt1v)-drelu(X@Uopt2v)*(X@Uopt2v),axis=1)
+        yest_cvx_train=np.sum(drelu(X_train@Uopt1v)*(X_train@Uopt1v)-drelu(X_train@Uopt2v)*(X_train@Uopt2v),axis=1)
         # test set result
         yest_cvx_test=np.sum(drelu(X_test@Uopt1v)*(X_test@Uopt1v)-drelu(X_test@Uopt2v)*(X_test@Uopt2v),axis=1)
 
         # Calculate RMSE for both convex optimization and backpropagation predictions
         rmse_cvx = np.sqrt(mean_squared_error(y_true, yest_cvx)) # overall
-        rmse_cvx_train = np.sqrt(mean_squared_error(y, yest_cvx_train)) # train
+        rmse_cvx_train = np.sqrt(mean_squared_error(y_train, yest_cvx_train)) # train
         rmse_cvx_test = np.sqrt(mean_squared_error(y_test, yest_cvx_test)) # test
         
         # Calculate R^2 for both convex optimization and backpropagation predictions
         r2_cvx = r2_score(y_true, yest_cvx)
-        r2_cvx_train = r2_score(y, yest_cvx_train)
+        r2_cvx_train = r2_score(y_train, yest_cvx_train)
         r2_cvx_test = r2_score(y_test, yest_cvx_test)
 
         if it == 1:
@@ -445,9 +509,9 @@ def visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, y, X_test, y_test, 
     
             plt.fill_between(x_vals, lower_bound, upper_bound, alpha=0.5, label=f'{int(alpha*100)}% Confidence Band')
     
-    plt.title(f'Active Learning (Cutting-Plane)')
+    plt.title(title)
     plt.xlabel('x')
     plt.ylabel('y')
     plt.legend()
-    plt.savefig(f'Cutting-Plane AFS.pdf', bbox_inches='tight')
+    plt.savefig(title, bbox_inches='tight')
     plt.show()

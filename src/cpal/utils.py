@@ -131,24 +131,3 @@ def in_Ct(c, Ct, eps=1e-3):
     return True
 
 
-
-# if __name__ == "__main__":
-#     from synthetic_data import *
-#     #X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
-#     X_all, y_all, X, y, X_test, y_test = generate_spiral_data(n=10, n_train=80)
-#     dmat = generate_hyperplane_arrangement(X = X, P = 1000, seed = RANDOM_STATE)
-#     U1, U2, cvx_opt, status = solve_two_layer_convex_program(X, y, dmat, beta=1e-5)
-#     print("Following are results from BP -----")
-#     U_bp, w_bp, obj_bp = train_bp_two_layer_relu(
-#     X=X, y=y, m=dmat.shape[1], beta=1e-5, sigma=1e-2, mu_init=0.5,
-#     ITERS=15000, cvx_opt=cvx_opt, seed=42)
-    # results = evaluate_quadratic_regression_models(
-    #     X_all=X_all, y_all=y_all,
-    #     X=X, y=y,
-    #     X_test=X_test, y_test=y_test,
-    #     Uopt1=U1, Uopt2=U2,
-    #     U_bp=U_bp, w_bp=w_bp,
-    #     save_path='plots/full_data_classification.pdf'
-    #     )
-
-

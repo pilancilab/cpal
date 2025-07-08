@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 # compute analytic center
 def center(S, X, dmat, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e-4):
     """S is list of affine inequalities described as tuple of LHS vector/matrix and RHS scalar/vector"""
-    n_train, d = X.shape
+    _, d = X.shape
     m=dmat.shape[1]
     s = cp.Variable(2*d*m)
     obj = 0 if boxinit else cp.log(R - cp.norm(s))
@@ -28,7 +28,7 @@ def center(S, X, dmat, R=1, boxinit=False, reg=False, beta =1e-5, reg_value=2e-4
     solvers = ['MOSEK', 'CLARABEL', 'GLPK', 'SCS', 'ECOS', 'OSQP']
     for solver in solvers:
         try:
-            prob.solve(solver=solver, warm_start = True, verbose=False)
+            prob.solve(solver=solver, verbose=False) # Warm_start set false for now.
             if prob.status == cp.OPTIMAL:
                 print(f"Solver {solver} succeeded!")
                 return s.value  # Return the center (concatenated c' and c vector)
@@ -58,7 +58,7 @@ def cut_reg(S, x, y, dmat_row, thresh): # cut for reg-cpal
         S.append((lhs, 0))  # Append ReLU constraint to S
 
 
-def cut(S, x, y, dmat_row):
+def cut_classification(S, x, y, dmat_row):
     m = len(dmat_row)
     S.append((-y * dmat_row @ np.kron(np.eye(m), np.concatenate((x, -x)).T), 0))
 
@@ -67,8 +67,8 @@ def cut(S, x, y, dmat_row):
         S.append((lhs, 0))
 
 
-def query(C, c, data_tried, data_used, X, dmat, M=100):
-    n_train, d = X.shape
+def query(c, data_tried, data_used, X, dmat):
+    n_train, _ = X.shape
 
     mini = np.inf
     i_mini = -1
@@ -143,41 +143,30 @@ def cutting_plane_regression(X, y, dmat, n_points=100, maxit=10000, threshold = 
         if len(data_tried) == n_train:
             data_tried = []
         if did_cut:
-            c = center(Ct, X=X, R=R, dmat = dmat, d = d)
+            c = center(Ct, X=X, R=R, dmat = dmat)
             did_cut = False
-        i_mini, i_maxi, i_minabs = query(Ct, c, data_tried, data_used, X, dmat)
+        i_mini, i_maxi, i_minabs = query(c, data_tried, data_used, X, dmat)
         if i_mini is None:
             return Ct, c, data_used
         data_tried += [i_mini, i_maxi]
         data_tried = list(set(data_tried))
-        if did_cut:
-            if np.linalg.norm(pred_point(i_mini, c, X, dmat) - y[i_mini]) > threshold:
-                print(f'Cutting at iteration {it}')
-                cut_reg(Ct, X[i_mini], y[i_mini], dmat[i_mini],threshold)
-                data_used.append(i_mini)
-                did_cut = True
-            if np.linalg.norm(pred_point(i_maxi, c, X, dmat)- y[i_maxi]) > threshold:
-                print(f'Cutting at iteration {it}')
-                cut_reg(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi],threshold)
-                data_used.append(i_maxi)
-                did_cut = True
-        else:
-            if np.linalg.norm(pred_point(i_minabs, c, X, dmat) - y[i_minabs]) > threshold:
-                print(f'Cutting at iteration {it}')
-                cut_reg(Ct, X[i_minabs], y[i_minabs], dmat[i_minabs],threshold)
-                data_used.append(i_minabs)
-                did_cut = True
+        if np.linalg.norm(pred_point(i_mini, c, X, dmat) - y[i_mini]) > threshold:
+            print(f'Cutting at iteration {it}')
+            cut_reg(Ct, X[i_mini], y[i_mini], dmat[i_mini],threshold)
+            data_used.append(i_mini)
+            did_cut = True
+        if np.linalg.norm(pred_point(i_maxi, c, X, dmat)- y[i_maxi]) > threshold:
+            print(f'Cutting at iteration {it}')
+            cut_reg(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi],threshold)
+            data_used.append(i_maxi)
+            did_cut = True
         it += 1
-
-        #data_used = list(set(data_used))
-
-        #print(len(data_tried))
 
     return Ct, c, data_used
 
 # cutting-plane classification
-def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
-    n_train, d = X.shape
+def cutting_plane_classification(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
+    _, d = X.shape
     m=dmat.shape[1]
     C0_lower = -R*np.ones(2*d*m)
     C0_upper = R*np.ones(2*d*m)
@@ -196,65 +185,27 @@ def cutting_plane(X, y, dmat, n_points=100, maxit=10000, R = 1, boxinit=False):
     c = None
     did_cut = True
     it = 0
+
     while len(data_used) < n_points and it < maxit:
-        if len(data_tried) == n_train:
-            data_tried = []
         if did_cut:
-            #if len(data_used) > 0:
-            #    _, _, reg_value = convex_solve(data_used)
-            #else:
-            #    reg_value = 1e-5
-            c = center(Ct, dmat = dmat, X=X, R=R)
+            c = center(Ct, dmat = dmat, X=X, R=R) # recompute center
             did_cut = False
-        i_mini, i_maxi, i_minabs = query(Ct, c, data_tried, data_used, X, dmat)
+        i_mini, i_maxi, _ = query(c, data_tried, data_used, X, dmat)
         if i_mini is None:
             return Ct, c, data_used
         data_tried += [i_mini, i_maxi]
         data_tried = list(set(data_tried))
-        #if it >= 30:
-        #    print(X[i_mini], np.sign(pred_point(i_mini, c)), y[i_mini])
-        #    print(X[i_maxi], np.sign(pred_point(i_maxi, c)), y[i_maxi])
-            #print(X[i_minabs], np.sign(pred_point(i_minabs, c)), y[i_minabs])
-        if True: #len(data_used) < 4 * n_points // 5:
-            if np.sign(pred_point(i_mini, c, X, dmat)) != y[i_mini]:
-                print(f'Cutting at iteration {it}')
-                cut(Ct, X[i_mini], y[i_mini], dmat[i_mini])
-                data_used.append(i_mini)
-                did_cut = True
-            if np.sign(pred_point(i_maxi, c, X, dmat)) != y[i_maxi]:
-                print(f'Cutting at iteration {it}')
-                cut(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi])
-                data_used.append(i_maxi)
-                did_cut = True
-        else:
-            if np.sign(pred_point(i_minabs, c, X, dmat)) != y[i_minabs]:
-                print(f'Cutting at iteration {it}')
-                cut(Ct, X[i_minabs], y[i_minabs], dmat[i_minabs])
-                data_used.append(i_minabs)
-                did_cut = True
+        if np.sign(pred_point(i_mini, c, X, dmat)) != y[i_mini]:
+            print(f'Cutting at iteration {it}')
+            cut_classification(Ct, X[i_mini], y[i_mini], dmat[i_mini])
+            data_used.append(i_mini)
+            did_cut = True
+        if np.sign(pred_point(i_maxi, c, X, dmat)) != y[i_maxi]:
+            print(f'Cutting at iteration {it}')
+            cut_classification(Ct, X[i_maxi], y[i_maxi], dmat[i_maxi])
+            data_used.append(i_maxi)
+            did_cut = True
         it += 1
-        
-        #data_used = list(set(data_used))
-        
-        #print(len(data_tried))
     
     return Ct, c, data_used
 
-
-# if __name__ == "__main__":
-#     from synthetic_data import *
-#     X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
-#     dmat = generate_hyperplane_arrangement(X = X)
-#     C, c, used = cutting_plane_regression(X, y, dmat, n_points = 20)
-#     print(f'size of C: {len(C)}')
-#     print(f'used: {used}')
-#     # plot results
-#     n_train, d = X.shape
-#     m = dmat.shape[1]
-#     Uopt1_final_v, Uopt2_final_v, _ = convex_solve(used, d, dmat, n_train) # with final convex solve
-#     theta_matrix = np.reshape(c, (2*d, m), order='F') # without convex solve
-#     Uopt1_v = theta_matrix[:d]
-#     Uopt2_v = theta_matrix[d:]
-#     Uopt1v_list = [Uopt1_final_v, Uopt1_v]
-#     Uopt2v_list = [Uopt2_final_v, Uopt2_v]
-#     visualize_regression(Uopt1v_list, Uopt2v_list, X_all, X, y, X_test, y_test, used, plot_band = False)
