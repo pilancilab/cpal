@@ -8,7 +8,7 @@ import locale
 from deepal_baseline.utils import get_dataset, get_net, get_strategy
 import pickle
 
-# Fix locale encoding + MKL issue
+# Suppress warnings
 locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
 os.environ['MKL_DEBUG_CPU_TYPE'] = '5'
 

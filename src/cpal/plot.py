@@ -443,16 +443,15 @@ def visualize_quadratic_regression(Uopt1v_list, Uopt2v_list, X_all, X_train, y_t
     X_selected = X_train[used]
     y_selected = y_train[used]
 
-    # x_vals = X_all[:,:-1]
     x_vals = X_all[:, 0]
     
     # Plotting the true quadratic curve, predicted curves, and training points
     plt.figure(figsize=(8, 8))
     # Visualization and accuracy
-    y_true = x_vals ** 2  # Since the true relationship is y = x^2
+    y_true = x_vals ** 2 
     # Plot the true curve y = x^2
     plt.plot(x_vals, y_true, 'k-', label='True y = x^2')
-    plt.scatter(X_selected[:,:-1], y_selected, color='blue', s=50)
+    plt.scatter(X_selected[:,:-1], y_selected, label = 'Selected Data', color='blue', s=50)
     plt.scatter(X_test[:,:-1], y_test, color='red', label='Test Data', alpha=0.5, marker='x')
 
     it = 0
@@ -461,8 +460,6 @@ def visualize_quadratic_regression(Uopt1v_list, Uopt2v_list, X_all, X_train, y_t
         # overall result
         yest_cvx=np.sum(drelu(X_all@Uopt1v)*(X_all@Uopt1v)-drelu(X_all@Uopt2v)*(X_all@Uopt2v),axis=1)
         
-        train_X_axis = X_train[:,:-1][:3].flatten() # for plotting purposes
-        test_X_axis = X_test[:,:-1][:3].flatten()
         # train set result
         yest_cvx_train=np.sum(drelu(X_train@Uopt1v)*(X_train@Uopt1v)-drelu(X_train@Uopt2v)*(X_train@Uopt2v),axis=1)
         # test set result

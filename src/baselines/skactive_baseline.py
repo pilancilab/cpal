@@ -171,27 +171,3 @@ def run_active_learning_strategies(X_all, y_all, X, y, X_test, y_test,
 
     return results
 
-
-# if __name__ == "__main__":
-#     import sys
-#     sys.path.append('.')
-#     from src.cpal.synthetic_data import *
-#     X_all, y_all, X, y, X_test, y_test = generate_quadratic_regression()
-#     # process the data to be compatiable with skactive
-#     X_all, X, X_test = adapt_data_for_scikit_al(X_all, X, X_test)
-#     strategies = ['greedyX', 'greedyTarget', 'qbc', 'kldiv']
-#     results = run_active_learning_strategies(
-#         X_all=X_all,
-#         y_all=y_all,
-#         X=X,
-#         y=y,
-#         X_test=X_test,
-#         y_test=y_test,
-#         strategies=strategies,
-#         active_learning_fn=active_learning_skactiveml,  # your function
-#         data_budget=20,
-#         seed=RANDOM_STATE
-#     )
-#     print(results)
-
-

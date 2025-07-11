@@ -324,14 +324,12 @@ def visualize_regression_linear(c, X_all, X_train, y_train, X_test, y_test, used
     y_true = x_vals ** 2 
     # Plot the true curve y = x^2
     plt.plot(x_vals, y_true, 'k-', label='True y = x^2')
-    plt.scatter(X_selected[:,:-1], y_selected, color='blue', s=50)
+    plt.scatter(X_selected[:,:-1], y_selected, color='blue', s=50, label='Selected Data')
     plt.scatter(X_test[:,:-1], y_test, color='red', label='Test Data', alpha=0.5, marker='x')
 
     # overall result
     yest_linear=np.dot(X_all,c)
 
-    train_X_axis = X_train[:,:-1][:3].flatten() # for plotting purposes
-    test_X_axis = X_test[:,:-1][:3].flatten()
     # train set result
     yest_linear_train=np.dot(X_train,c)
     # test set result
