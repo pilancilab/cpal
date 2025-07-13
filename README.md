@@ -20,11 +20,11 @@ We demonstrate, for the first time, that cutting-plane algorithms, traditionally
 
 If you find our work useful, consider giving us a star ⭐ and citing our paper as:
 
-<pre> ```bibtex @inproceedings{
+<pre> \ @inproceedings{
     zhang2025active,
     title={Active Learning of Deep Neural Networks via Gradient-Free Cutting Planes},
     author={Erica Zhang and Fangzhao Zhang and Mert Pilanci},
     booktitle={The Forty-Second International Conference on Machine Learning},
     year={2025},
     url={https://openreview.net/forum?id=SmYDdeLAR5}
-}``` </pre>
+}</pre>
