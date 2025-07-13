@@ -18,6 +18,7 @@ We demonstrate, for the first time, that cutting-plane algorithms, traditionally
     
     The primary scripts are as follows:
     - `**run_deepal_class.py**`: Run various deep active learning algorithms from [DeepAL](https://github.com/ej0cl6/deep-active-learning) on classification of a synthetic spiral. A sample code snipet to run the script is given as follows: <pre>python -m deepal_baseline.demo \ --n_round 3 \ --n_query 10 \ --n_init_labeled 10 \ --dataset_name Spiral \ --strategy_name EntropySampling \ --seed 1
+    
     This runs the "Entropy Sampling" deep AL baseline on the synthetic Spiral dataset with 10 initial labels, a total of 3 rounds of querying with 10 queries in each round. 
     - **COMING UP**
 
