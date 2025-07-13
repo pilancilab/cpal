@@ -6,7 +6,7 @@ Cutting-plane active learning is a novel active learning algorithm designed for 
 
 ![CPAL pipeline](documentation/cpal.png)
 
-<h3><span style="color:red">🚨 This repository is currently under active construction. The version here is preliminary and subject to change.</span></h3>
+<h3><span style="color:red"><em>🚨 This repository is currently under active construction. The version here is preliminary and subject to change.</em></span></h3>
 
 # Abstract
 Active learning methods aim to improve sample complexity in machine learning. In this work, we investigate an active learning scheme via a novel gradient-free cutting-plane training method for ReLU networks of arbitrary depth and develop a convergence theory. 
