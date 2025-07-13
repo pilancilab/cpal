@@ -71,6 +71,8 @@ def safe_sign(x):
 
 def generate_hyperplane_arrangement(X, P=2000, seed=0):
     """
+    For two-layer CPAL.
+
     Generates a finite approximation of hyperplane-induced binary activation patterns (sign patterns)
     from a ReLU network using randomly sampled hyperplanes.
 
@@ -106,7 +108,21 @@ def generate_hyperplane_arrangement(X, P=2000, seed=0):
 
     return dmat
 
-# --- Prediction and Constraint Functions ---
+
+def generate_3layer_hyperplane_arrangement(X, P1, P2, seed = 0):
+    n_train, d = X.shape
+    np.random.seed(seed)
+    W1 = np.random.randn(d,P1)
+    W2 = np.random.randn(P1,P2)
+    Di = drelu(relu(X@W1)@W2).astype(int)
+    Qj = drelu(X@W1).astype(int)
+    Di=(np.unique(Di,axis=1))
+    Qj=(np.unique(Qj,axis=1))
+    return Di, Qj
+
+
+
+# --- Prediction and Constraint Functions for 2-layer CPAL ---
 def pred_point(i, vec, X, dmat): # corresponds to <w(theta), x>
     return (dmat[i] @ np.kron(np.eye(len(dmat[i])), np.concatenate((X[i], -X[i])).T)) @ vec
 
@@ -130,4 +146,33 @@ def in_Ct(c, Ct, eps=1e-3):
             return False
     return True
 
+
+# --- Prediction and Constraint Functions for 3-layer CPAL ---
+def sort_center(X, c, Di, Qj):
+    _, d = X.shape
+    P2 = Di.shape[1]
+    P1 = Qj.shape[1]
+    c1 = {}; c2 = {}; c3 = {}; c4 = {}
+    for i in range(P2):
+        for j in range(P1):
+            c1[(i,j)] = c[(d*P1*i+d*j):(d*P1*i+d*j+d)]
+            c2[(i,j)] = c[(P2*P1*d+d*P1*i+d*j):(P2*P1*d+d*P1*i+d*j+d)]
+            c3[(i,j)] = c[(P2*P1*2*d+d*P1*i+d*j):(P2*P1*2*d+d*P1*i+d*j+d)]
+            c4[(i,j)] = c[(P2*P1*3*d+d*P1*i+d*j):(P2*P1*3*d+d*P1*i+d*j+d)]
+    return c1, c2, c3, c4
+
+def predict(X, c, i, Di, Qj):
+    P2 = Di.shape[1]
+    P1 = Qj.shape[1]
+    c1, c2, c3, c4 = sort_center(X, c, Di, Qj)
+    xa = X[i,:]
+    pred = 0
+    for l in range(P2):
+        sum_pos = 0
+        sum_neg = 0
+        for j in range(P1):
+            sum_pos += Qj[i,j]*(xa@c1[(l,j)])-Qj[i,j]*(xa@c2[(l,j)])
+            sum_neg += Qj[i,j]*(xa@c3[(l,j)])-Qj[i,j]*(xa@c4[(l,j)])
+        pred += Di[i,j]*sum_pos - Di[i,j]*sum_neg
+    return pred
 

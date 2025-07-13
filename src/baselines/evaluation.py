@@ -4,7 +4,7 @@ Implements various evaluation of baselines vs. our method. Includes:
 (2). deep-nn training results using samples selected by each method
 """
 import os
-from src.deep_nn import SimpleRegressor, train_model
+from src.baselines.deep_nn import SimpleRegressor, train_model
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm

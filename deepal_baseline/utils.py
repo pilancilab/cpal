@@ -1,7 +1,8 @@
 from torchvision import transforms
-from deepal_baseline.handlers import MNIST_Handler, SVHN_Handler, CIFAR10_Handler, Spiral_Handler, Quadratic_Handler
-from deepal_baseline.data import get_MNIST, get_FashionMNIST, get_SVHN, get_CIFAR10, get_Spiral, get_Quadratic
-from deepal_baseline.nets import Net, MNIST_Net, SVHN_Net, CIFAR10_Net, Spiral_Net, Quadratic_Net
+from deepal_baseline.handlers import MNIST_Handler, SVHN_Handler, CIFAR10_Handler, Spiral_Handler, Quadratic_Handler, Blob_Handler
+from deepal_baseline.data import get_MNIST, get_FashionMNIST, get_SVHN, get_CIFAR10, get_Spiral, get_Quadratic, get_Blob
+from deepal_baseline.nets import Net, MNIST_Net, SVHN_Net, CIFAR10_Net, Spiral_Net
+from deepal_baseline.nets_reg import Quadratic_Net
 from deepal_baseline.query_strategies import EntropySampling, KMeansSampling, BALDDropout, AdversarialBIM, RandomSampling, LeastConfidence
 
 # MarginSampling, LeastConfidenceDropout, MarginSamplingDropout, EntropySamplingDropout, KMeansSampling, KCenterGreedy, BALDDropout, AdversarialBIM, AdversarialDeepFool

@@ -1,9 +1,12 @@
 # Cutting-Plane Active Learning (CPAL)
+
 Cutting-plane active learning is a novel active learning algorithm designed for supervised learning tasks using ReLU networks of arbitrary depths. This active learning scheme induces a gradient-free learning scheme and, to the best of our knowledge, is the first active learning algorithm as of date to have achieved theoretical convergence guarantees. 
 
 🔗 Paper link: [Active Learning of Deep Neural Networks via Gradient-Free Cutting Planes](https://arxiv.org/pdf/2410.02145?)
 
 ![CPAL pipeline](documentation/cpal.png)
+
+<h3><span style="color:red">🚨 This repository is currently under active construction. The version here is preliminary and subject to change.</span></h3>
 
 # Abstract
 Active learning methods aim to improve sample complexity in machine learning. In this work, we investigate an active learning scheme via a novel gradient-free cutting-plane training method for ReLU networks of arbitrary depth and develop a convergence theory. 

@@ -3,7 +3,6 @@ import os
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 import locale
 from deepal_baseline.utils import get_dataset, get_net, get_strategy
 import pickle
@@ -23,8 +22,8 @@ def parse_args():
     parser.add_argument('--strategy_name', type=str, default="EntropySampling",
                         choices=["RandomSampling", "LeastConfidence", "EntropySampling",
                                  "KMeansSampling", "BALDDropout", "AdversarialBIM"])
-    parser.add_argument('--save_dir', type=str, default="plots")
-    parser.add_argument('--save_pickle', action='store_true')
+    parser.add_argument('--save_dir', type = str, default = "reg_plots", help = "saving directory for plots.")
+    parser.add_argument('--save_pickle', type = str, default = "reg_rmse", help = "saving directory for rmse.")
     return parser.parse_args()
 
 def setup_seed(seed):
@@ -77,7 +76,7 @@ def run_active_learning(args):
 
     return selected_indices, rmse_train_list, rmse_test_list, strategy, dataset, net, device
 
-def plot_regression(net, dataset, selected_indices, strategy, device, save_dir="plots"):
+def plot_regression(net, dataset, selected_indices, strategy, device, save_dir="reg_plots"):
     os.makedirs(save_dir, exist_ok=True)
 
     x_vals = np.linspace(-1, 1, 100)
@@ -123,8 +122,7 @@ def main():
     print(f"RMSE train: {rmse_train}")
     print(f"RMSE test: {rmse_test}")
 
-    if args.save_pickle:
-        save_rmse_pickle(rmse_train, rmse_test, args.strategy_name, save_dir=args.save_dir)
+    save_rmse_pickle(rmse_train, rmse_test, args.strategy_name, save_dir=args.save_pickle)
 
 if __name__ == '__main__':
     main()

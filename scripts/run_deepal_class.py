@@ -1,7 +1,7 @@
 import argparse
 import numpy as np
 import torch
-from utils import get_dataset, get_net, get_strategy
+from deepal_baseline.utils import get_dataset, get_net, get_strategy
 from pprint import pprint
 # Fix locale encoding issue
 import locale
